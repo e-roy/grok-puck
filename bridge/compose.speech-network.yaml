@@ -1,0 +1,19 @@
+# Optional: when the speech server runs in Docker on the same machine, let the bridge reach it over
+# Docker instead of out through Cloudflare and back. Start with both files:
+#
+#   docker compose -f compose.yaml -f compose.speech-network.yaml up -d --build
+#
+# SPEECH_NETWORK in .env is the speech server's Docker network (find it with `docker network ls`).
+# Then, in the admin page, set the TTS and STT base URLs to the speech server's address inside that
+# network: its service name and port, followed by /v1 (for example http://<service>:<port>/v1).
+
+services:
+  bridge:
+    networks:
+      - default
+      - speech
+
+networks:
+  speech:
+    external: true
+    name: ${SPEECH_NETWORK:?set SPEECH_NETWORK in .env (docker network ls)}

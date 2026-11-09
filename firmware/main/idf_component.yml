@@ -1,0 +1,11 @@
+# Exact versions, each released at least 7 days before it was pinned (the project's supply-chain rule;
+# the component manager has no minimum-age setting). dependencies.lock records what was resolved.
+dependencies:
+  idf: ">=6.1"
+  espressif/esp_lcd_spd2010: "==2.0.0~1"
+  espressif/esp_lcd_touch_spd2010: "==2.1.0"
+  espressif/esp_io_expander_tca9554: "==2.0.3"
+  espressif/esp_lvgl_port: "==2.9.0"
+  lvgl/lvgl: "==9.6.0~1"
+  espressif/esp_websocket_client: "==1.8.0"
+  espressif/cjson: "==1.7.19~2"

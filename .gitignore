@@ -1,0 +1,37 @@
+# Secrets never go in the repo: Wi-Fi passwords, Grok Bot webhook URLs/keys,
+# tunnel credentials, OAuth tokens.
+.env
+.env.*
+!.env.example
+secrets/
+*.secret.json
+
+# Personal notes and research: kept locally, never in the repo's history.
+private/
+CLAUDE.local.md
+# Local Claude Code tooling (browser automation used for research)
+.mcp.json
+
+# Bridge: dependencies, its data file (holds webhook and speech keys), builds, fake-device output
+node_modules/
+bridge/data/
+bridge/admin/dist/
+bridge/.fake/
+
+# Logs: they hold local paths, serial ports and the board's MAC address
+*.log
+
+# Board flash backups
+backups/
+*.bin.bak
+
+# ESP-IDF / PlatformIO build output and local config (sdkconfig can hold Wi-Fi credentials)
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+.pio/
+
+# Python
+.venv/
+__pycache__/

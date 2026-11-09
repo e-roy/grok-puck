@@ -1,0 +1,4 @@
+#!/bin/sh
+# Refuses commits that contain personal details or secrets (see scripts/check-private.mjs).
+# Enable once per clone: git config core.hooksPath .githooks
+exec node "$(git rev-parse --show-toplevel)/scripts/check-private.mjs"

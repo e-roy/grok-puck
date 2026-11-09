@@ -1,0 +1,6 @@
+# Same line endings on every machine (Windows development, macOS / Linux deployment).
+* text=auto eol=lf
+
+*.png binary
+# Exported meshes: large, generated from the .scad sources; no text diffs.
+*.stl -diff linguist-generated
