@@ -1,6 +1,9 @@
-// Keeps personal details and secrets out of this public repo. Runs as the pre-commit hook
-// (.githooks/pre-commit) and on every pull request (.github/workflows/ci.yml), and refuses when it
-// finds:
+// Keeps personal details and secrets out of this public repo. Runs locally only, as two git hooks
+// (enabled once per clone: git config core.hooksPath .githooks):
+//   - .githooks/pre-commit refuses a commit whose staged files hold something below;
+//   - .githooks/pre-push refuses a push whose commits do: their messages, names and emails, and what
+//     each adds (`--commits`), so a rebase, cherry-pick or amend that skipped pre-commit is caught.
+// What it refuses:
 //   - anything listed in private/denylist.txt (git-ignored, kept by each maintainer for themselves:
 //     their name, email, domain, home network addresses, Wi-Fi names, device IDs...), or
 //   - something that looks like a key, token or private key, or a file that should never be committed
