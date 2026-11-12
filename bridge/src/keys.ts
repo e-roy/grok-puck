@@ -5,6 +5,9 @@ export function newKey(): string {
   return randomBytes(32).toString('base64url');
 }
 
+/** Every key's length (32 bytes in base64url). */
+export const KEY_LENGTH = 43;
+
 export function hashKey(key: string): string {
   return createHash('sha256').update(key).digest('hex');
 }

@@ -200,7 +200,10 @@ async function mcpCall(headers: Record<string, string>): Promise<{ status: numbe
 test('the MCP endpoint refuses a wrong key, and Recent calls says what the key looked like', async () => {
   const wrong = await mcpCall({ authorization: 'Bearer wrong' });
   assert.equal(wrong.status, 401);
-  assert.equal(wrong.refused, 'Authorization: Bearer <5 characters>');
+  assert.equal(wrong.refused, 'Authorization: Bearer <5 characters> (not the key, which has 43 characters)');
+
+  const cut = await mcpCall({ authorization: mcpKey.slice(1) });
+  assert.equal(cut.refused, 'Authorization: <42 characters> (not the key, which has 43 characters)');
 
   const doubled = await mcpCall({ authorization: `Bearer Bearer ${mcpKey}` });
   assert.equal(doubled.status, 401);
@@ -235,4 +238,18 @@ test('an approved device reconnects with its key, and a wrong key is refused', a
   const closed = next<number>(stranger, 'closed');
   await stranger.connect();
   assert.equal(await closed, 4001);
+});
+
+// Last: it replaces and then revokes the key the fake Grok Bot uses.
+test('the admin page shows the key by its last 4 characters, and can revoke it', async () => {
+  const { key } = await admin<{ key: string }>('POST', '/api/mcp-key', {});
+  type Mcp = { mcp: { keySet: boolean; keyEnd: string; keyCreatedAt: string } };
+  const created = (await admin<Mcp>('GET', '/api/overview')).mcp;
+  assert.equal(created.keyEnd, key.slice(-4));
+  assert.ok(created.keyCreatedAt);
+  assert.equal((await mcpCall({ authorization: `Bearer ${mcpKey}` })).status, 401, 'the replaced key no longer works');
+
+  await admin('DELETE', '/api/mcp-key');
+  assert.deepEqual((await admin<Mcp>('GET', '/api/overview')).mcp.keySet, false);
+  assert.equal((await mcpCall({ authorization: `Bearer ${key}` })).status, 503, 'no key works once it is revoked');
 });

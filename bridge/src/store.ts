@@ -68,6 +68,8 @@ export interface HistoryEntry {
 export interface State {
   version: 1;
   mcpKeyHash: string;
+  mcpKeyEnd: string; // its last 4 characters, so the admin page can tell keys apart ('' for older keys)
+  mcpKeyCreatedAt: string;
   bots: Bot[];
   devices: Device[];
   speech: Speech;
@@ -82,6 +84,8 @@ function defaultState(): State {
   return {
     version: 1,
     mcpKeyHash: '',
+    mcpKeyEnd: '',
+    mcpKeyCreatedAt: '',
     bots: [],
     devices: [],
     speech: {

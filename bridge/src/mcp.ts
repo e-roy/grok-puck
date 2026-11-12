@@ -5,7 +5,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { BOT_STATES, type Desk, type Outcome } from './desk.ts';
-import { bearer, keyMatches } from './keys.ts';
+import { bearer, KEY_LENGTH, keyMatches } from './keys.ts';
 import type { Store } from './store.ts';
 
 export const VERSION = '0.1.0';
@@ -113,7 +113,13 @@ export function describeKey(req: FastifyRequest, keyHash: string): string {
   };
   const notes: string[] = [];
   const auth = req.headers.authorization?.trim();
-  notes.push(auth ? `Authorization: ${auth.split(/\s+/).slice(0, 4).map(shape).join(' ')}` : 'no Authorization header');
+  if (!auth) notes.push('no Authorization header');
+  else {
+    const words = auth.split(/\s+/).slice(0, 4);
+    // A copy that lost a character, or an old key: the length tells which.
+    const notKey = words.some(isKey) ? '' : ` (not the key, which has ${KEY_LENGTH} characters)`;
+    notes.push(`Authorization: ${words.map(shape).join(' ')}${notKey}`);
+  }
   for (const [name, value] of Object.entries(req.headers).slice(0, 60)) {
     if (name === 'authorization' || typeof value !== 'string') continue;
     if (value.split(/\s+/).slice(0, 8).some(isKey)) notes.push(`the key is in the ${name} header`);

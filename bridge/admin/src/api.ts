@@ -73,7 +73,7 @@ export interface Overview {
   devices: Device[];
   bots: Bot[];
   speech: { tts: Service; stt: Service & { language: string; mockText: string } };
-  mcp: { keySet: boolean; url: string; calls: McpCall[] };
+  mcp: { keySet: boolean; keyEnd: string; keyCreatedAt: string; url: string; calls: McpCall[] };
   history: HistoryEntry[];
   shapes: Shape[];
   displayStates: string[];

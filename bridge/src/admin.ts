@@ -89,9 +89,16 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
 
   app.post('/api/mcp-key', async () => {
     const key = newKey();
-    store.state.mcpKeyHash = hashKey(key);
-    store.addHistory({ kind: 'admin', ok: true, detail: 'new MCP key created; the old one no longer works' });
+    const replaced = Boolean(store.state.mcpKeyHash);
+    Object.assign(store.state, { mcpKeyHash: hashKey(key), mcpKeyEnd: key.slice(-4), mcpKeyCreatedAt: new Date().toISOString() });
+    store.addHistory({ kind: 'admin', ok: true, detail: replaced ? 'new MCP key created; the old one no longer works' : 'MCP key created' });
     return { key };
+  });
+
+  app.delete('/api/mcp-key', async () => {
+    Object.assign(store.state, { mcpKeyHash: '', mcpKeyEnd: '', mcpKeyCreatedAt: '' });
+    store.addHistory({ kind: 'admin', ok: true, detail: 'MCP key revoked; Grok Bot can no longer call the bridge' });
+    return { ok: true };
   });
 
   app.post('/api/bots', async (req, reply) => {
@@ -307,6 +314,8 @@ function overview(ctx: AdminContext) {
     speech: { tts: service(s.speech.tts), stt: { ...service(s.speech.stt), language: s.speech.stt.language, mockText: s.speech.stt.mockText } },
     mcp: {
       keySet: Boolean(s.mcpKeyHash),
+      keyEnd: s.mcpKeyHash ? s.mcpKeyEnd : '',
+      keyCreatedAt: s.mcpKeyHash ? s.mcpKeyCreatedAt : '',
       url: config.publicBaseUrl ? `${config.publicBaseUrl}/mcp` : `http://<this computer>:${ctx.publicPort}/mcp`,
       calls: activity.calls,
     },

@@ -19,6 +19,17 @@ export function GrokBot({ data, run }: SectionProps) {
   const [key, setKey] = useState('');
   const create = () =>
     void run(async () => setKey((await api<{ key: string }>('POST', '/api/mcp-key', {})).key), 'New MCP key created. Copy it now: it is shown only once.');
+  const revoke = () =>
+    void run(async () => {
+      await api('DELETE', '/api/mcp-key');
+      setKey('');
+    }, 'MCP key revoked.');
+  const { keySet, keyEnd, keyCreatedAt } = data.mcp;
+  const keyStatus = !keySet
+    ? 'No key yet: Grok Bot cannot call the bridge.'
+    : keyEnd
+      ? `Key ending in ${keyEnd}, created ${ago(keyCreatedAt)}. It is shown in full only when created.`
+      : 'A key exists. It is shown only when created.';
   const webhooks = data.bots.filter((b) => b.webhookUrl.startsWith('https://'));
   const accepted = data.mcp.calls.filter((c) => !c.refused);
   const lastCall = accepted[0];
@@ -54,18 +65,30 @@ export function GrokBot({ data, run }: SectionProps) {
             </Field>
             <div className="flex flex-wrap items-center gap-3">
               <KeyRoundIcon className="size-4 text-muted-foreground" aria-hidden />
-              <span className="text-sm">{data.mcp.keySet ? 'A key exists. It is shown only when created.' : 'No key yet: Grok Bot cannot call the bridge.'}</span>
-              {data.mcp.keySet ? (
-                <ConfirmButton
-                  danger
-                  size="sm"
-                  title="Replace the MCP key?"
-                  description="The current key stops working at once, so Grok Bot needs the new one in its MCP server settings."
-                  confirm="Replace the key"
-                  onConfirm={create}
-                >
-                  Replace the key
-                </ConfirmButton>
+              <span className="text-sm">{keyStatus}</span>
+              {keySet ? (
+                <>
+                  <ConfirmButton
+                    danger
+                    size="sm"
+                    title="Replace the MCP key?"
+                    description="The current key stops working at once, so Grok Bot needs the new one in its MCP server settings."
+                    confirm="Replace the key"
+                    onConfirm={create}
+                  >
+                    Replace the key
+                  </ConfirmButton>
+                  <ConfirmButton
+                    danger
+                    size="sm"
+                    title="Revoke the MCP key?"
+                    description="Grok Bot can no longer call the bridge, so the desk stops showing its status and speaking its replies, until you create a new key and put it in Grok Bot's MCP server settings."
+                    confirm="Revoke the key"
+                    onConfirm={revoke}
+                  >
+                    Revoke
+                  </ConfirmButton>
+                </>
               ) : (
                 <Button size="sm" onClick={create}>
                   Create the key
@@ -77,8 +100,16 @@ export function GrokBot({ data, run }: SectionProps) {
                 <TriangleAlertIcon />
                 <AlertTitle>Copy the key now</AlertTitle>
                 <AlertDescription className="flex w-full flex-col gap-2">
-                  It is not shown again. Put it in Grok Bot's MCP server header in place of &lt;key&gt;.
-                  <CopyField id="mcp-key" label="the key" value={key} />
+                  It is not shown again. Grok Bot sends the header value exactly as typed, so paste the whole value, &quot;Bearer&quot;
+                  included.
+                  <Field>
+                    <FieldLabel htmlFor="mcp-header-value">Authorization header value</FieldLabel>
+                    <CopyField id="mcp-header-value" label="the header value" value={`Bearer ${key}`} />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="mcp-key">The key alone, for other clients</FieldLabel>
+                    <CopyField id="mcp-key" label="the key" value={key} />
+                  </Field>
                   <Button variant="ghost" size="sm" className="self-start" onClick={() => setKey('')}>
                     Hide it
                   </Button>
