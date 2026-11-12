@@ -32,7 +32,7 @@ design: [docs/spec.md](docs/spec.md).
 |---|---|
 | [Bridge](bridge/) (TypeScript server + admin page) | working, with tests and a fake device / fake Grok Bot |
 | [Firmware](firmware/) (ESP-IDF, Waveshare ESP32-S3-Touch-LCD-1.46) | working: Wi-Fi setup from a phone, approval, avatar and states, spoken replies, hold to talk. Next: several saved Wi-Fi networks |
-| Grok Bot setup | guide drafted, first real connection next: [docs/grok-bot-setup.md](docs/grok-bot-setup.md) |
+| Grok Bot setup | working: MCP server, standing instructions and voice routine. Some checks still to run: [docs/grok-bot-setup.md](docs/grok-bot-setup.md) |
 | [Case and stand](hardware/) (3D prints) | slim case and stand designed; an earlier larger case printed and fitting |
 
 ## Getting started

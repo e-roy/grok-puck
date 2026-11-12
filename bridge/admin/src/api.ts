@@ -47,6 +47,8 @@ export interface Service {
 
 export interface McpCall {
   at: string;
+  /** Set when the call was refused for its key: what the key looked like, never the key. */
+  refused?: string;
   userAgent: string;
   methods: string[];
   client: string;
@@ -71,7 +73,7 @@ export interface Overview {
   devices: Device[];
   bots: Bot[];
   speech: { tts: Service; stt: Service & { language: string; mockText: string } };
-  mcp: { keySet: boolean; url: string; calls: McpCall[] };
+  mcp: { keySet: boolean; keyEnd: string; keyCreatedAt: string; url: string; calls: McpCall[] };
   history: HistoryEntry[];
   shapes: Shape[];
   displayStates: string[];

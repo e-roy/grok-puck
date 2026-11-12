@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { accessVerifier } from './access.ts';
 import { wav } from './audio.ts';
 import { Clip } from './clip.ts';
+import { errorText } from './errors.ts';
 import type { Config } from './config.ts';
 import type { Desk } from './desk.ts';
 import { webhookUrlProblem } from './grokbot.ts';
@@ -88,9 +89,16 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
 
   app.post('/api/mcp-key', async () => {
     const key = newKey();
-    store.state.mcpKeyHash = hashKey(key);
-    store.addHistory({ kind: 'admin', ok: true, detail: 'new MCP key created; the old one no longer works' });
+    const replaced = Boolean(store.state.mcpKeyHash);
+    Object.assign(store.state, { mcpKeyHash: hashKey(key), mcpKeyEnd: key.slice(-4), mcpKeyCreatedAt: new Date().toISOString() });
+    store.addHistory({ kind: 'admin', ok: true, detail: replaced ? 'new MCP key created; the old one no longer works' : 'MCP key created' });
     return { key };
+  });
+
+  app.delete('/api/mcp-key', async () => {
+    Object.assign(store.state, { mcpKeyHash: '', mcpKeyEnd: '', mcpKeyCreatedAt: '' });
+    store.addHistory({ kind: 'admin', ok: true, detail: 'MCP key revoked; Grok Bot can no longer call the bridge' });
+    return { ok: true };
   });
 
   app.post('/api/bots', async (req, reply) => {
@@ -258,7 +266,7 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
       const hint = /\/v1\/?$/.test(body.baseUrl) ? '' : ' (OpenAI-style base URLs usually end in /v1.)';
       return { models: [], baseUrl: body.baseUrl, message: `This service has no model list: type the model name.${hint}` };
     } catch (err) {
-      return bad(reply, `Couldn't get the model list: ${err instanceof Error ? err.message : String(err)}`);
+      return bad(reply, `Couldn't get the model list: ${errorText(err)}`);
     }
   });
 
@@ -266,7 +274,7 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     try {
       return { voices: await makeTts(store.state.speech.tts).voices() };
     } catch (err) {
-      return { voices: [], error: err instanceof Error ? err.message : String(err) };
+      return { voices: [], error: errorText(err) };
     }
   });
 
@@ -278,7 +286,7 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
       const pcm = await clip.all();
       return reply.type('audio/wav').send(wav(pcm, clip.sampleRate));
     } catch (err) {
-      return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
+      return reply.code(502).send({ error: errorText(err) });
     }
   });
 
@@ -306,6 +314,8 @@ function overview(ctx: AdminContext) {
     speech: { tts: service(s.speech.tts), stt: { ...service(s.speech.stt), language: s.speech.stt.language, mockText: s.speech.stt.mockText } },
     mcp: {
       keySet: Boolean(s.mcpKeyHash),
+      keyEnd: s.mcpKeyHash ? s.mcpKeyEnd : '',
+      keyCreatedAt: s.mcpKeyHash ? s.mcpKeyCreatedAt : '',
       url: config.publicBaseUrl ? `${config.publicBaseUrl}/mcp` : `http://<this computer>:${ctx.publicPort}/mcp`,
       calls: activity.calls,
     },

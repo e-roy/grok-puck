@@ -18,6 +18,7 @@ let bridge: Bridge;
 let bot: FakeGrokBot;
 let device: FakeDevice;
 let botId: string;
+let mcpKey: string;
 
 async function admin<T = Record<string, unknown>>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(`http://127.0.0.1:${bridge.adminPort}${url}`, {
@@ -50,8 +51,8 @@ function next<T>(emitter: EventEmitter, event: string, check: (value: T) => bool
 before(async () => {
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'desk-bridge-'));
   bridge = await startBridge({ ...loadConfig({}), dataDir, publicPort: 0, adminPort: 0, logLevel: 'silent' });
-  const { key } = await admin<{ key: string }>('POST', '/api/mcp-key', {});
-  bot = new FakeGrokBot({ mcpUrl: `http://127.0.0.1:${bridge.publicPort}/mcp`, mcpKey: key, webhookKey: WEBHOOK_KEY, replyDelayMs: 50 });
+  ({ key: mcpKey } = await admin<{ key: string }>('POST', '/api/mcp-key', {}));
+  bot = new FakeGrokBot({ mcpUrl: `http://127.0.0.1:${bridge.publicPort}/mcp`, mcpKey, webhookKey: WEBHOOK_KEY, replyDelayMs: 50 });
   await bot.start();
   ({ id: botId } = await admin<{ id: string }>('POST', '/api/bots', {
     name: 'Desk Bot',
@@ -184,13 +185,38 @@ test('the admin page can tell an online device to forget its Wi-Fi', async () =>
   await told;
 });
 
-test('the MCP endpoint refuses a wrong key', async () => {
+/** Calls tools/list with these headers; returns the status and how Recent calls describes the call. */
+async function mcpCall(headers: Record<string, string>): Promise<{ status: number; refused?: string; headerNames: string[] }> {
   const res = await fetch(`http://127.0.0.1:${bridge.publicPort}/mcp`, {
     method: 'POST',
-    headers: { authorization: 'Bearer wrong', 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...headers },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
   });
-  assert.equal(res.status, 401);
+  await res.arrayBuffer();
+  const overview = await admin<{ mcp: { calls: Array<{ refused?: string; headerNames: string[] }> } }>('GET', '/api/overview');
+  return { status: res.status, ...overview.mcp.calls[0]! };
+}
+
+test('the MCP endpoint refuses a wrong key, and Recent calls says what the key looked like', async () => {
+  const wrong = await mcpCall({ authorization: 'Bearer wrong' });
+  assert.equal(wrong.status, 401);
+  assert.equal(wrong.refused, 'Authorization: Bearer <5 characters> (not the key, which has 43 characters)');
+
+  const cut = await mcpCall({ authorization: mcpKey.slice(1) });
+  assert.equal(cut.refused, 'Authorization: <42 characters> (not the key, which has 43 characters)');
+
+  const doubled = await mcpCall({ authorization: `Bearer Bearer ${mcpKey}` });
+  assert.equal(doubled.status, 401);
+  assert.equal(doubled.refused, 'Authorization: Bearer Bearer <the key>');
+
+  const elsewhere = await mcpCall({ 'x-api-key': mcpKey });
+  assert.equal(elsewhere.status, 401);
+  assert.equal(elsewhere.refused, 'no Authorization header; the key is in the x-api-key header');
+  assert.ok(elsewhere.headerNames.includes('x-api-key'));
+
+  const ok = await mcpCall({ authorization: `Bearer ${mcpKey}` });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.refused, undefined);
 });
 
 test('the admin API refuses changes without its header', async () => {
@@ -212,4 +238,18 @@ test('an approved device reconnects with its key, and a wrong key is refused', a
   const closed = next<number>(stranger, 'closed');
   await stranger.connect();
   assert.equal(await closed, 4001);
+});
+
+// Last: it replaces and then revokes the key the fake Grok Bot uses.
+test('the admin page shows the key by its last 4 characters, and can revoke it', async () => {
+  const { key } = await admin<{ key: string }>('POST', '/api/mcp-key', {});
+  type Mcp = { mcp: { keySet: boolean; keyEnd: string; keyCreatedAt: string } };
+  const created = (await admin<Mcp>('GET', '/api/overview')).mcp;
+  assert.equal(created.keyEnd, key.slice(-4));
+  assert.ok(created.keyCreatedAt);
+  assert.equal((await mcpCall({ authorization: `Bearer ${mcpKey}` })).status, 401, 'the replaced key no longer works');
+
+  await admin('DELETE', '/api/mcp-key');
+  assert.deepEqual((await admin<Mcp>('GET', '/api/overview')).mcp.keySet, false);
+  assert.equal((await mcpCall({ authorization: `Bearer ${key}` })).status, 503, 'no key works once it is revoked');
 });

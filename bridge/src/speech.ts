@@ -1,6 +1,7 @@
 // Speech services. "openai" means any service with OpenAI's audio API: a self-hosted Kokoro/Speaches
 // server, OpenAI itself, Groq and others. "mock" needs no service and is for tests.
 import { babble, SPEAKER_RATE } from './audio.ts';
+import { errorText } from './errors.ts';
 import type { Speech, SpeechService } from './store.ts';
 
 export interface Tts {
@@ -125,7 +126,7 @@ export async function checkTtsModels(service: SpeechService, listed: string[]): 
       })();
       const timeout = new Promise<boolean>((resolve) => setTimeout(() => resolve(false), CHECK_TIMEOUT_MS).unref());
       return Promise.race([attempt, timeout]).catch((err: unknown) => {
-        errors.set(model, err instanceof Error ? err.message : String(err));
+        errors.set(model, errorText(err));
         return false;
       });
     }),

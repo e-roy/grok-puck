@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyBaseLogger } from 'fastify';
 import { ERROR_TONE, MIC_RATE, NO_ANSWER_TONE, SPEAKER_RATE, tones, wav } from './audio.ts';
 import { Clip } from './clip.ts';
+import { errorText } from './errors.ts';
 import { postWebhook, type VoiceMessage } from './grokbot.ts';
 import type { DeviceHub } from './hub.ts';
 import { RateLimit } from './ratelimit.ts';
@@ -394,8 +395,4 @@ export class Desk {
 
 function names(devices: Device[]): string {
   return devices.map((d) => d.name).join(', ');
-}
-
-function errorText(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

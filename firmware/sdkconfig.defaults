@@ -33,3 +33,6 @@ CONFIG_LV_DEF_REFR_PERIOD=15
 CONFIG_LV_FONT_MONTSERRAT_14=y
 CONFIG_LV_FONT_MONTSERRAT_24=y
 CONFIG_LV_USE_QRCODE=y
+# Cloudflare's edge sends GTS Root R4 cross-signed by GlobalSign Root CA, which is no longer in the
+# bundle: without this the handshake fails ("No matching trusted root certificate found").
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY=y
