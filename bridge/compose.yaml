@@ -2,9 +2,10 @@
 # Settings come from .env next to this file (copy .env.example). Nothing is published on the host:
 # the tunnel reaches the bridge inside this compose network.
 #
-# In the tunnel's Public Hostnames (Cloudflare Zero Trust → Networks → Tunnels):
-#   desk.example.com        → http://bridge:8787   devices and Grok Bot (no Access policy here)
-#   desk-admin.example.com  → http://bridge:8788   the admin page (protect it with an Access application)
+# The tunnel's published application routes (Cloudflare Zero Trust → Networks → Tunnels → the tunnel),
+# each with this Service URL and nothing in HTTP Host Header:
+#   desk.example.com        → http://bridge:8787   devices and Grok Bot (no Access application here)
+#   desk-admin.example.com  → http://bridge:8788   the admin page (protected by an Access application)
 
 # The project name, so the containers and the data volume (grok-puck_bridge_data) keep their names
 # whatever the folder is called.
@@ -33,7 +34,7 @@ services:
       start_period: 10s
 
   cloudflared:
-    # Pin a version in .env (CLOUDFLARED_VERSION) rather than following "latest".
+    # Pin a release in .env (CLOUDFLARED_VERSION, see .env.example) rather than following "latest".
     image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-latest}
     restart: unless-stopped
     command: tunnel --no-autoupdate run
