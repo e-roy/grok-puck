@@ -54,9 +54,16 @@ Full BOM, print settings and the OpenSCAD sources: [hardware/](hardware/).
 
 ## Contributing
 
-Enable the commit check once per clone: `git config core.hooksPath .githooks`. It refuses commits
-that contain secrets or anything listed in your own `private/denylist.txt` (git-ignored); see
-[scripts/check-private.mjs](scripts/check-private.mjs).
+Enable the privacy check once per clone: `git config core.hooksPath .githooks`. It refuses
+secrets and anything listed in your own `private/denylist.txt` (git-ignored), in two git hooks:
+**pre-commit** checks the staged files, and **pre-push** checks the commits about to be pushed
+(messages, names and emails, and what each commit adds, even if a later one removes it). See
+[scripts/check-private.mjs](scripts/check-private.mjs). It runs locally only: whatever reaches a
+pushed commit or a pull request has already been published.
+
+Every pull request to `main` runs three checks ([.github/workflows/ci.yml](.github/workflows/ci.yml)):
+**bridge** (type check, tests, admin page build), **docker** (the bridge image builds) and
+**firmware** (the ESP-IDF v6.1 build for the ESP32-S3).
 
 ## Licence
 

@@ -1,0 +1,34 @@
+#!/bin/sh
+# Refuses a push whose commits contain personal details or secrets (see scripts/check-private.mjs):
+# their messages, names and emails, and what each one adds. Something added in one commit and removed
+# in a later one is still published with it, and rebases, cherry-picks and amends don't always run the
+# pre-commit hook. Enabled with the pre-commit hook, once per clone: git config core.hooksPath .githooks
+#
+# git gives one line per ref on stdin: <local ref> <local sha> <remote ref> <remote sha>.
+
+script="$(git rev-parse --show-toplevel)/scripts/check-private.mjs"
+remote="$1"
+status=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_sha" in
+    *[!0]*) ;;
+    *) continue ;; # a deletion: nothing is published
+  esac
+  case "$remote_sha" in
+    *[!0]*) existing=yes ;;
+    *) existing=no ;;
+  esac
+  if [ "$existing" = yes ] && git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+    # An existing remote branch: the commits it doesn't have yet.
+    node "$script" --commits "$remote_sha..$local_sha" </dev/null
+  else
+    # A new branch (or one whose remote commit isn't here): the commits on none of the remote's branches.
+    node "$script" --commits "$local_sha" --not "--remotes=$remote" </dev/null
+  fi
+  result=$?
+  if [ "$result" -gt "$status" ]; then status=$result; fi
+done
+
+if [ "$status" -ne 0 ]; then echo "pre-push: push refused (see above)." >&2; fi
+exit "$status"
