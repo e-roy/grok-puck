@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { accessVerifier } from './access.ts';
 import { wav } from './audio.ts';
 import { Clip } from './clip.ts';
+import { errorText } from './errors.ts';
 import type { Config } from './config.ts';
 import type { Desk } from './desk.ts';
 import { webhookUrlProblem } from './grokbot.ts';
@@ -258,7 +259,7 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
       const hint = /\/v1\/?$/.test(body.baseUrl) ? '' : ' (OpenAI-style base URLs usually end in /v1.)';
       return { models: [], baseUrl: body.baseUrl, message: `This service has no model list: type the model name.${hint}` };
     } catch (err) {
-      return bad(reply, `Couldn't get the model list: ${err instanceof Error ? err.message : String(err)}`);
+      return bad(reply, `Couldn't get the model list: ${errorText(err)}`);
     }
   });
 
@@ -266,7 +267,7 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     try {
       return { voices: await makeTts(store.state.speech.tts).voices() };
     } catch (err) {
-      return { voices: [], error: err instanceof Error ? err.message : String(err) };
+      return { voices: [], error: errorText(err) };
     }
   });
 
@@ -278,7 +279,7 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
       const pcm = await clip.all();
       return reply.type('audio/wav').send(wav(pcm, clip.sampleRate));
     } catch (err) {
-      return reply.code(502).send({ error: err instanceof Error ? err.message : String(err) });
+      return reply.code(502).send({ error: errorText(err) });
     }
   });
 
