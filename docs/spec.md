@@ -1,8 +1,9 @@
 # Spec: Grok Bot desk display
 
-**Status: draft v0.1 (24 Oct 2026), for approval.** Nothing below has been built yet. Items marked
-*(proposal)* are suggestions you can change; items marked *(to test)* depend on how Grok Bot actually
-behaves, and get checked at milestone M2.
+**Status: v0.1 (24 Oct 2026) is mostly built; the README says what works.** New, for approval
+(12 Nov 2026): **xAI as a speech service** (§5.6.1) and the **Listen page** for hearing the bot on a
+computer (§5.10). Items marked *(proposal)* are suggestions you can change; items marked *(to test)*
+depend on how Grok Bot actually behaves, and get checked at milestone M2.
 
 This document is written to be public: it has no personal details, hostnames or keys. Real values live
 in `.env` files and in the bridge's admin page, both of which stay out of git.
@@ -19,7 +20,8 @@ A small round screen on the desk that **is** one Grok Bot:
 - **Hold the screen and speak** to answer; let go to send. A spoken message acts exactly like a message
   typed into the app, actions included.
 
-Grok Bot is the only "brain". There is no separate voice model and no xAI developer API.
+Grok Bot is the only "brain": nothing else decides what to say or do. Speech services only turn speech
+into text and back. xAI's speech API can be one of them (§5.6.1); no other xAI developer API is used.
 
 ## 2. Scope
 
@@ -50,13 +52,13 @@ Grok Bot is the only "brain". There is no separate voice model and no xAI develo
 └───────────────┘             │  admin     web page         │  MCP calls │  speak replies)  │
                               └───────┬─────────────┬───────┘            └──────────────────┘
                                       │ TTS         │ STT
-                              speech server     STT provider
+                              speech server     STT service
                               (Kokoro, OpenAI-  (any OpenAI-compatible
-                               compatible)       service, or others later)
+                               compatible, xAI)  service, xAI)
 
 Public entry: one Cloudflare Tunnel (outbound only; no ports open at home)
   bridge hostname        /device (device keys), /mcp (MCP key)   — no login page; programs use keys
-  admin hostname         admin page — Cloudflare Access login, checked again by the bridge
+  admin hostname         admin page, Listen page — Cloudflare Access login, checked again by the bridge
 ```
 
 **Why a bridge.** The device sits behind a home router and can only open connections outward. Grok Bot
@@ -118,7 +120,7 @@ blob, teardrop, cloud, hex, squircle, circle *(to confirm against the app before
 | thinking | bridge (after a voice message) or the bot | eyes look up, dots orbit the rim |
 | working | the bot (`desk_status`) | faster orbit, eyes darting |
 | waiting | the bot needs your approval | eyes on you, soft attention pulse |
-| speaking | audio playing | body pulses with the audio level |
+| speaking | audio playing (or playing on the Listen page, §5.10) | body pulses with the audio level (a steady pulse when the audio plays elsewhere) |
 | error | STT/TTS/webhook failure or no answer in 3 min | short shake, red tint, then idle |
 | muted | the admin page | small "muted" mark, no audio |
 
@@ -232,6 +234,7 @@ No button or gesture on the device is used (holding BOOT while plugging in is do
 | `/device` (WebSocket) | devices | device key (pending devices: hello only) |
 | `/mcp` | Grok Bot | `Authorization: Bearer <MCP key>` |
 | admin page + its API | you | Cloudflare Access, plus the bridge verifies Access's signed token |
+| Listen page + `/listen/ws` *(proposal, §5.10)* | you, on a computer or phone | as the admin page (same port, same checks) |
 | `/healthz` | monitoring | none, reports nothing private |
 
 ### 5.3 Device protocol (implemented in `bridge/src/protocol.ts`)
@@ -281,14 +284,52 @@ calling. If it doesn't, the skill's instructions pass the bot's name, and the br
 its list.
 
 ### 5.6 Speech
-- **TTS:** an OpenAI-compatible `/v1/audio/speech` service (the Kokoro speech server), `response_format:
-  pcm` (24 kHz), streamed to the device as it arrives. The voice is chosen per bot in the admin page,
-  from the service's voice list, with a sample button.
-- **STT:** a provider entry in the admin page. To begin with, "OpenAI-compatible" (base URL, key,
-  model), which covers the speech server, OpenAI, Groq and others. Other provider types can be added later.
+- **Two services, chosen separately.** Text to speech (TTS) and speech to text (STT) each have their
+  own entry in the admin page, so they can come from different places: for example a self-hosted
+  voice and a hosted transcriber. Each entry has a service type:
+  - **OpenAI-compatible:** base URL, key, model. Covers the Kokoro speech server, OpenAI, Groq and
+    others. TTS uses `/audio/speech` with `response_format: pcm` (24 kHz), streamed to the device as
+    it arrives; STT uses `/audio/transcriptions`.
+  - **xAI** *(proposal, §5.6.1)*: xAI's own speech API, with only a key.
+- **Voice:** chosen per bot in the admin page, from the TTS service's voice list, with a sample button.
 - **Text cleanup before speaking:** remove markdown, skip code blocks and URLs (replaced by a short
   "code omitted" or "link"), keep everything else. Replies are spoken in full; long replies are long
   on purpose, as a prompt to tune the bot to be concise.
+- **The Grok Bot app's own voice.** The app has dictation (speech typed into the message box) and
+  voice chat (a live spoken call with the bot, with its own voice picker). They belong to the app: no
+  documented route (webhook, MCP, skills) carries audio, so the bridge can't use them. They work
+  alongside the desk: a dictated message is a typed message, so the desk speaks the reply as usual.
+  During a voice chat, mute the device so it doesn't talk over the call. *(to test)* whether the bot
+  calls the desk tools during a voice chat.
+
+#### 5.6.1 xAI as a speech service *(proposal, not built)*
+
+xAI's developer API has text to speech and speech to text, with voices from the same family as Grok's
+own apps. It is a **separate account and bill** from the Grok Bot plan: a key from xAI's developer
+console, paid per use. The listed prices at the time of writing are $15 per million characters spoken
+and $0.10 per hour transcribed. At those prices, 100 replies of 300 characters cost about $0.45. It is
+opt-in: the default stays a self-hosted (or any OpenAI-compatible) service.
+
+Its endpoints aren't OpenAI's, so it is a service type of its own (`xai`, next to `openai` and `mock`):
+
+| | xAI's API | What the bridge does |
+|---|---|---|
+| Speak | `POST https://api.x.ai/v1/tts` with `text`, `voice_id`, `language`, `output_format: { codec: "pcm", sample_rate: 24000 }` | sends the bot's voice as `voice_id` and the service's language (`auto` unless set). The docs show the answer both as JSON with base64 `audio` and as a plain audio body, so the bridge accepts either, by its content type |
+| Voices | `GET /v1/tts/voices` (`voice_id`, `name`, `language`) | the bot's voice list, grouped by language as for Kokoro |
+| Listen | `POST /v1/stt`, multipart: `language`, then `file` (it must be the last field) | sends the recording as WAV, as now, and uses the answer's `text` |
+
+- **Waiting for the first word.** This call returns the whole clip at once, while a streaming service
+  starts sooner. So long replies are sent in pieces of a few sentences, one after the other, and the
+  device starts speaking after the first piece *(proposal)*. If that still feels slow, xAI's streaming
+  connection (`wss://api.x.ai/v1/tts`) is the next step.
+- **Admin page.** Each Speech card gets a service choice: OpenAI-compatible or xAI. For xAI only the
+  key is asked, since the address is fixed, and **Check** replaces Find models. It speaks a one-word
+  test (TTS) or sends half a second of silence (STT), and the status line says connected or what went
+  wrong. Each card keeps its own key, so the same xAI key is pasted into both cards when both use xAI.
+- **Not used:** xAI's realtime voice agent (speech to speech). It would be a second brain answering
+  instead of the Grok Bot; the bridge stays a translator between the desk and the bot.
+- **Tests:** a fake xAI server in the test suite, answering in both documented formats.
+- *(to test)* Whether the voices in the Grok Bot app's voice chat are among the API's voices.
 
 ### 5.7 Routing, queueing, limits
 - A reply goes to the device that asked. `desk_say` and `desk_status` go to all devices attached to
@@ -317,6 +358,8 @@ item links to where it is fixed; when all are done it shrinks to "Ready".
 approved device a card with:
 - the bot's avatar showing what the device shows (idle, thinking…), online or last seen, firmware;
 - name (edited in place), bot, volume (slider), mute (switch), longest message;
+- **Speak on** *(proposal, §5.10)*: the device, the Listen page or both, and whether a Listen page is
+  ready for it, with a link to open one;
 - **Try it:** a sentence to speak, with the last few used; showing a state is in a small Test menu;
 - **Wi-Fi:** its saved networks, Forget for each, and Wi-Fi setup (§4.6);
 - at the bottom, set apart: **Forget all networks** and **Forget**, each confirmed in a dialog that
@@ -332,8 +375,9 @@ approved device a card with:
 - Save is enabled when something changed; edits survive switching sections, and leaving or reloading
   the page with unsaved changes asks first. Add bot is a small dialog asking for the name.
 
-**Speech.** A card each for text to speech and speech to text: service, base URL, key (write-only),
-Find models → model list, and a status line (connected, or what went wrong). Text to speech has
+**Speech.** A card each for text to speech and speech to text: service (OpenAI-compatible, or xAI:
+§5.6.1), base URL, key (write-only), Find models → model list, and a status line (connected, or what
+went wrong). Text to speech has
 **Play a test sentence** in the browser; speech to text has the language.
 
 **Grok Bot.** The MCP URL and the header with copy buttons; the key is created or replaced through a
@@ -359,6 +403,44 @@ The admin API stays as it is; anything new on the page is worked out in the page
 - Nothing is reachable from the internet except through the tunnel; no home ports are opened.
 - Transcripts and bot text are treated as data, never as commands to the bridge.
 - `.env`, the data volume, backups and `private/` are git-ignored from the first commit.
+
+### 5.10 The Listen page: hearing the bot on a computer *(proposal, not built)*
+
+For when the bot should be heard through a computer, with headphones or better speakers, rather than
+from the device. The Grok Bot app's documentation describes no reading aloud of typed replies, so this
+is also the way to hear them on headphones.
+
+- **What it is:** a page the bridge serves next to the admin page (`/listen`, same hostname, same
+  Cloudflare Access login). Open it in a tab on a computer, or on a phone, and it plays the bot's
+  speech. It shows the bot's avatar and state, drawn as on the device (the admin page already draws
+  that preview), and a **Stop** button.
+- **Where speech goes:** a setting per device in the admin page, **Speak on**: *the device* (the
+  default), *the Listen page*, or *both*. When it is set to the Listen page but no page is ready, the
+  device speaks, so nothing is lost.
+- **Which device:** the page plays for one device, picked on the page and remembered in that browser.
+  With one device there is nothing to pick. If several pages play for the same device, the one started
+  last plays and the others show "playing elsewhere".
+- **Starting sound:** browsers play sound only after a click on the page, so it opens with **Start
+  listening**, and doesn't count as ready until that click. After it, speech plays as long as the tab
+  is open, in the background too. Phones may pause a page when the screen locks, so on a phone it is
+  best effort.
+- **How the audio gets there:** a WebSocket on the admin port (`/listen/ws`, checked like the admin
+  API) carries the same messages the device gets: `play.start`, 24 kHz PCM frames, `play.end` and
+  `stop`. The page answers `played` and `stop`, and plays the audio with the Web Audio API. The error
+  tone goes the same way.
+- **The device meanwhile:** it still shows thinking, working and waiting. While the page plays, the
+  bridge shows "speaking" on the device, then "idle" when the page reports the clip done. Speaking
+  without audio is a steady pulse, which takes a small firmware change. *(Later: the voice level sent
+  along, so the pulse follows the voice.)*
+- **Stopping:** a tap on the device, or holding it to talk, stops speech wherever it plays. So does
+  the page's Stop button.
+- **Mute** silences speech everywhere. The device's volume slider sets the device only; the page uses
+  the computer's volume.
+- **Device offline:** with Speak on set to the Listen page, the page still plays while the device is
+  offline.
+- **Later, not in this step:** hold-to-talk on the page with the computer's microphone (hold a button
+  or the space bar), through the same STT and webhook. With it, the page would work as a desk without
+  the device, for example on a laptop when travelling.
 
 ---
 
@@ -412,9 +494,11 @@ measurements (context, reliability, timing) are still to be taken.
 | M5 | Listening: hold-to-talk, voice level, STT, full voice turn | hold, speak, let go, the bot acts, the reply is spoken |
 | M6 | Polish: avatar shapes matched to the app, dimming, mute, errors, docs for the public release | ready to make public |
 | R | When the code is mature: move personal and research files to `private/`, clean up `CLAUDE.md` and the docs, create the repo | first commit contains nothing personal |
+| M7 | *(proposal)* Listen page (§5.10) | with Speak on set to the Listen page, a typed chat reply plays in the browser tab while the device shows "speaking"; a tap on the device stops it; with no page ready, the device speaks |
+| M8 | *(proposal)* xAI as a speech service (§5.6.1) | the device speaks with an xAI voice, a voice message is transcribed by xAI, and the tests pass against a fake xAI server |
 
 M1 and M2 come first so that any surprise on the Grok Bot side shows up before the firmware is far
-along. M3 can run in parallel.
+along. M3 can run in parallel. M7 and M8 don't depend on each other, so either can come first.
 
 ## 9. Risks and open points
 
@@ -427,3 +511,7 @@ along. M3 can run in parallel.
 | Exact avatar shapes and colours of the app | match by eye in M6 using the admin preview |
 | STT quality | provider is configurable; the speech server's STT for testing only |
 | Grok Bot app changes | only documented routes are used (webhook, custom MCP, skills) |
+| The bot may call the desk tools during the app's voice chat, so the device talks over the call | test in M2; mute the device during calls |
+| xAI's TTS docs show two answer formats (JSON with base64 audio, and a plain audio body) | accept both; check with a real key in M8 |
+| xAI speech is billed per use, outside the Grok Bot plan | opt-in; the prices are stated in the admin page's Speech card and here |
+| Browsers block sound until the page is clicked; phones may pause a page | the Listen page counts as ready only after a click; otherwise the device speaks |
