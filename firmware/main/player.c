@@ -22,6 +22,8 @@ static bool active;     // a clip is buffered or playing
 static bool ended;      // play.end has arrived
 static bool primed;
 static bool flush;      // drop what is buffered (done by the reader, which may reset the buffer)
+static unsigned gaps;   // times the buffer ran dry while the clip was still arriving (reader only)
+static bool dry;
 
 esp_err_t player_init(void) {
     buffer = xStreamBufferCreateWithCaps(BUFFER_BYTES, 1, MALLOC_CAP_SPIRAM);
@@ -112,9 +114,20 @@ size_t player_read(int16_t *pcm, size_t samples, bool *finished, char *finished_
         portENTER_CRITICAL(&lock);
         primed = true;
         portEXIT_CRITICAL(&lock);
+        gaps = 0;
+        dry = false;
     }
-    const size_t got = xStreamBufferReceive(buffer, pcm, samples * sizeof(int16_t), 0) / sizeof(int16_t);
+    // Whole samples only. Audio arrives in parts, and nothing guarantees a part ends on a sample;
+    // taking an odd byte count would shift every later sample by a byte, which sounds like loud noise.
+    size_t want = samples * sizeof(int16_t);
+    const size_t available = xStreamBufferBytesAvailable(buffer);
+    if (want > available) want = available & ~(size_t)1;
+    const size_t got = want ? xStreamBufferReceive(buffer, pcm, want, 0) / sizeof(int16_t) : 0;
+    if (got == 0 && !has_ended && !dry) gaps++;
+    dry = got == 0;
     if (got == 0 && has_ended) {
+        if (gaps) ESP_LOGW(TAG, "the clip ran dry %u times while arriving (network too slow?)", gaps);
+        gaps = 0;
         char id[sizeof(clip_id)];
         portENTER_CRITICAL(&lock);
         const bool still_this_clip = active && ended;  // not stopped or replaced meanwhile
