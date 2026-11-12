@@ -41,6 +41,8 @@ export function GrokBot({ data, run }: SectionProps) {
     : lastRefused
       ? `refused ${ago(lastRefused.at)}: wrong key or header`
       : 'no calls yet';
+  // The bot's own desk_say calls (the admin page's speech tests don't go through MCP).
+  const lastSay = accepted.find((c) => c.tool === 'desk_say');
 
   return (
     <>
@@ -122,15 +124,20 @@ export function GrokBot({ data, run }: SectionProps) {
         <Card>
           <CardHeader>
             <CardTitle>Setup in the Grok Bot app</CardTitle>
-            <CardDescription>Each step is done by you in the app. The skill and routine texts are written when Grok Bot is connected (M2).</CardDescription>
+            <CardDescription>Each step is done by you in the app. The messages to send are in the repository&apos;s docs/grok-bot-setup.md.</CardDescription>
           </CardHeader>
           <CardContent>
             <ol className="flex flex-col gap-4">
               <SetupStep n={1} title="Custom MCP server" done={Boolean(lastCall)} status={callStatus}>
                 Ask your bot in chat to add the MCP server above, with the header; the app shows a confirmation card.
               </SetupStep>
-              <SetupStep n={2} title={'Skill "Desk display"'} status="text comes in M2">
-                Standing instructions: report <code>desk_status</code> while working, and call <code>desk_say</code> with every reply.
+              <SetupStep
+                n={2}
+                title="Standing instructions"
+                done={Boolean(lastSay)}
+                status={lastSay ? `desk_say ${ago(lastSay.at)}` : 'no desk_say call yet'}
+              >
+                A skill, or the bot&apos;s memory: report <code>desk_status</code> while working, and call <code>desk_say</code> with every reply.
               </SetupStep>
               <SetupStep
                 n={3}
