@@ -49,7 +49,7 @@ function next<T>(emitter: EventEmitter, event: string, check: (value: T) => bool
 }
 
 before(async () => {
-  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'desk-bridge-'));
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'grok-puck-'));
   bridge = await startBridge({ ...loadConfig({}), dataDir, publicPort: 0, adminPort: 0, logLevel: 'silent' });
   ({ key: mcpKey } = await admin<{ key: string }>('POST', '/api/mcp-key', {}));
   bot = new FakeGrokBot({ mcpUrl: `http://127.0.0.1:${bridge.publicPort}/mcp`, mcpKey, webhookKey: WEBHOOK_KEY, replyDelayMs: 50 });

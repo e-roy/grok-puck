@@ -67,29 +67,55 @@ bridge listens and how the admin page is protected:
 ## On the always-on machine
 
 The bridge runs in Docker next to its own Cloudflare Tunnel; no port is opened at home. It needs
-Docker (Docker Desktop on a Mac, set to start at login) and git.
+Docker (Docker Desktop on a Mac, set to start at login), git, and a domain on Cloudflare.
 
 1. Clone the repository and go into `bridge/`. Create `.env` from `.env.example`.
-2. In Cloudflare Zero Trust → Networks → Tunnels, create a tunnel for this project and copy its token
-   into `.env`. Add two public hostnames:
-   - `desk.example.com` → `http://bridge:8787`, for devices and Grok Bot. No Access policy here: those
-     are programs and use their own keys.
+2. **Set up Cloudflare Zero Trust**, once per Cloudflare account: open Zero Trust in the dashboard,
+   choose a team name and the **Free** plan. Cloudflare asks for a payment method but doesn't charge
+   for the Free plan.
+3. **The tunnel:** Zero Trust → Networks → Tunnels, create a tunnel for this project and copy its token
+   into `.env` (`CLOUDFLARE_TUNNEL_TOKEN`). Add two **published application routes**, each with the
+   bridge's address inside Docker as the **Service URL** and nothing in **HTTP Host Header**:
+   - `desk.example.com` → `http://bridge:8787`, for devices and Grok Bot. No Access application for
+     this one: those are programs and use their own keys.
    - `desk-admin.example.com` → `http://bridge:8788`, for the admin page.
-3. In Zero Trust → Access → Applications, add a self-hosted application for `desk-admin.example.com`
-   with a policy that allows only your email. Copy its **Application Audience (AUD) Tag** and your
-   team domain (`<team>.cloudflareaccess.com`) into `.env`.
-4. `docker compose up -d --build`, then open `https://desk-admin.example.com`: Cloudflare asks you to sign
+4. **Access for the admin page:** Zero Trust → Access controls → Applications → **Create new
+   application** → **Self-hosted and private** → **Add public hostname**: `desk-admin.example.com`.
+   Give it a policy that allows only your email. The login method can be **Cloudflare** (you sign in
+   with your Cloudflare account; the default for new organizations). Then copy into `.env`:
+   - `CF_ACCESS_AUD`: the application's **Application Audience (AUD) Tag**, under the application's
+     **Edit** → **Additional settings**;
+   - `CF_ACCESS_TEAM_DOMAIN`: your team domain (`<team>.cloudflareaccess.com`), under **Settings** →
+     **Team name and domain**.
+
+   The session duration only sets how often the admin page asks you to sign in again. The devices and
+   Grok Bot never go through Access, so it never affects them.
+5. `docker compose up -d --build`, then open `https://desk-admin.example.com`: Cloudflare asks you to sign
    in first.
-5. Check from outside: `curl https://desk.example.com/healthz` answers `{"ok":true}`, and the admin
+6. Check from outside: `curl https://desk.example.com/healthz` answers `{"ok":true}`, and the admin
    hostname redirects to the Cloudflare login.
 
 **Speech server on the same machine:** use its public URL in the admin page, or keep the traffic inside
-Docker with `docker compose -f compose.yaml -f compose.speech-network.yaml up -d --build` (see that
-file).
+Docker with [compose.speech-network.yaml](compose.speech-network.yaml):
 
-**Cloudflare settings to check:** WebSockets must be allowed (they are by default). If Bot Fight Mode or
-a WAF rule challenges non-browser clients on your zone, add a skip rule for `desk.example.com`, or Grok
-Bot's calls and the devices will be blocked.
+1. Find the speech server's Docker network, name and port:
+
+   ```sh
+   docker ps --format "table {{.Names}}\t{{.Networks}}\t{{.Ports}}"
+   ```
+
+   The port is the container's own: the one after `->` when it is also published on the host. If the
+   speech server has its own tunnel route from a `cloudflared` container, that route's Service URL is
+   already its address inside Docker (for example `http://speech:8000`).
+2. In `.env`, set `SPEECH_NETWORK` to that network and uncomment
+   `COMPOSE_FILE=compose.yaml:compose.speech-network.yaml`, so a plain `docker compose up -d --build`
+   (and every command below) keeps the speech network.
+3. In the admin page, set the TTS and STT base URLs to `http://<name>:<port>/v1`.
+
+**Cloudflare settings to check:** WebSockets must be allowed (they are by default). Bot Fight Mode
+can challenge programs, and on the Free plan it can't be skipped with a WAF rule (Cloudflare's docs say
+so). Check **Security** → **Settings** → **Bot traffic**: if the devices or Grok Bot are challenged,
+turn Bot Fight Mode off.
 
 **Day to day:**
 
@@ -98,11 +124,12 @@ git pull && docker compose up -d --build     # update
 docker compose logs -f bridge                # logs
 docker compose ps                            # health
 # Back up the bridge's data (bots, devices, keys, history) to ./bridge-data.tgz:
-docker run --rm -v bridge_bridge_data:/data -v "$PWD":/backup alpine tar czf /backup/bridge-data.tgz -C /data .
+docker run --rm -v grok-puck_bridge_data:/data -v "$PWD":/backup alpine tar czf /backup/bridge-data.tgz -C /data .
 ```
 
-The volume is named after the folder: `bridge_bridge_data` when compose runs in `bridge/`
-(`docker volume ls` shows it). The backup holds secrets: keep it private.
+The volume is `grok-puck_bridge_data`: the project name set in `compose.yaml` (`name: grok-puck`) plus
+`bridge_data`, whatever the folder is called (`docker volume ls` shows it). The backup holds secrets:
+keep it private.
 
 ## Connect Grok Bot
 

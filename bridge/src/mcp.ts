@@ -131,7 +131,7 @@ export function describeKey(req: FastifyRequest, keyHash: string): string {
 }
 
 function buildServer(desk: Desk): McpServer {
-  const server = new McpServer({ name: 'desk-bridge', version: VERSION }, { instructions: INSTRUCTIONS });
+  const server = new McpServer({ name: 'grok-puck', version: VERSION }, { instructions: INSTRUCTIONS });
   const target = {
     request_id: z
       .string()

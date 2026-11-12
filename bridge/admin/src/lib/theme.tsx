@@ -3,7 +3,7 @@
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react';
 
 export type ThemeChoice = 'system' | 'light' | 'dark';
-const KEY = 'desk-bridge-theme';
+const KEY = 'grok-puck-theme';
 
 function saved(): ThemeChoice {
   try {

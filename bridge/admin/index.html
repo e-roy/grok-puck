@@ -10,7 +10,7 @@
     <script>
       // The theme before the first paint (lib/theme.tsx takes over), so a reload doesn't flash light.
       try {
-        var t = localStorage.getItem('desk-bridge-theme');
+        var t = localStorage.getItem('grok-puck-theme');
         var d = t === 'dark' || (t !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
         document.documentElement.classList.toggle('dark', d);
         document.documentElement.style.colorScheme = d ? 'dark' : 'light';

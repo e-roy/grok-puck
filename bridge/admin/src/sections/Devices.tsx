@@ -292,7 +292,7 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
 }
 
 function TryIt({ device, run }: { device: Device; run: Run }) {
-  const key = `desk-bridge-said-${device.id}`;
+  const key = `grok-puck-said-${device.id}`;
   const [text, setText] = useState('Hello from the desk bridge.');
   const [recent, setRecent] = useState(() => readList(key));
   const say = (sentence: string) => {
