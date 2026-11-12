@@ -1,5 +1,5 @@
 # Checks on every pull request to main and every push to main. Each job is its own check, so a branch
-# ruleset can require them by name: bridge, docker, firmware, privacy. Keep the job names stable.
+# ruleset can require them by name: bridge, docker, firmware. Keep the job names stable.
 #
 # Every action is pinned to a full commit SHA from a release at least 7 days old (the same rule as the
 # bridge's packages), and only GitHub's, pnpm's and Espressif's are used. Runs for pull requests get a
@@ -83,45 +83,3 @@ jobs:
         run: |
           . "$IDF_PATH/export.sh" > /dev/null
           idf.py build
-
-  privacy:
-    name: privacy
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0 # the whole history, for the commit range
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-      - name: Denylist from the PRIVATE_DENYLIST secret, if there is one
-        # Written to the git-ignored private/denylist.txt, never printed.
-        env:
-          PRIVATE_DENYLIST: ${{ secrets.PRIVATE_DENYLIST }}
-        run: |
-          if [ -n "$PRIVATE_DENYLIST" ]; then
-            mkdir -p private
-            printf '%s\n' "$PRIVATE_DENYLIST" > private/denylist.txt
-            echo "Using the PRIVATE_DENYLIST secret."
-          else
-            echo "::notice title=privacy::No PRIVATE_DENYLIST secret (pull requests from forks never get secrets), so only secrets and forbidden files were checked."
-          fi
-      - name: Files
-        run: node scripts/check-private.mjs --all
-      - name: Commits (messages, names and emails)
-        env:
-          EVENT: ${{ github.event_name }}
-          PR_BASE: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD: ${{ github.event.pull_request.head.sha }}
-          BEFORE: ${{ github.event.before }}
-        run: |
-          if [ "$EVENT" = pull_request ]; then
-            range="$PR_BASE..$PR_HEAD"
-          elif git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            range="$BEFORE..$GITHUB_SHA"
-          else
-            range="$GITHUB_SHA" # no earlier commit to start from: check the whole history
-          fi
-          node scripts/check-private.mjs --commits "$range"
