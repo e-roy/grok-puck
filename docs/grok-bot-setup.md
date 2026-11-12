@@ -1,7 +1,7 @@
 # Connecting Grok Bot
 
-**Status: draft, not yet tried against Grok Bot.** Steps marked *(to test)* depend on how the app
-behaves; this guide gets corrected after the first real connection.
+**Status: step 1 works with Grok Bot; steps 2 and 3 are not yet tried.** Steps marked *(to test)*
+depend on how the app behaves; this guide gets corrected as each one is tried.
 
 Three things connect a bot to the desk. Each one changes your Grok Bot account, so do them one at a
 time and check each before the next:
@@ -19,7 +19,9 @@ open. Every routine run, including tests, uses your Grok Bot plan's usage.
 
 ## 1. The MCP server
 
-1. Admin page → **Grok Bot connection** → **Create the key**. Copy it; it is shown only once.
+1. Admin page → **Grok Bot** → **Create the key**. It is shown only once: copy the **Authorization
+   header value** with its copy button. That is `Bearer`, a space and the key. Grok Bot sends the
+   header value exactly as typed, so "Bearer" has to be part of it.
 2. In a chat with your bot, send:
 
    > Please add a custom remote MCP server for my desk display.
@@ -34,6 +36,14 @@ open. Every routine run, including tests, uses your Grok Bot plan's usage.
 4. **Check:** ask the bot "Call desk_devices." It should list your devices. In the admin page,
    **Recent calls** shows the call: note its client name, user agent and header names. They tell us
    whether Grok Bot says which bot is calling.
+
+**If it doesn't connect:** look at **Recent calls**. A call refused for its key is listed as
+**refused**, with what the key looked like (never the key itself), for example
+`Authorization: <42 characters> (not the key, which has 43 characters)`: here "Bearer" is missing
+and a character was lost when copying. After a refused key, Grok Bot looks for an OAuth sign-in
+(requests to `/.well-known/oauth-protected-resource` and similar, answered 404, in the bridge's
+log). The bridge doesn't offer one, and those requests only mean the key was refused. The key
+can't be shown again: **Replace the key** and paste the new header value.
 
 ## 2. The skill
 

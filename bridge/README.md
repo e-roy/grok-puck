@@ -33,7 +33,7 @@ pnpm start
 Two stand-ins come with the bridge: a fake device and a fake Grok Bot. Speech starts as "Mock" (beeps
 for speech, a fixed transcript), so nothing else is needed.
 
-1. Admin page → **Grok Bot connection** → **Create the key**, and copy it.
+1. Admin page → **Grok Bot** → **Create the key**, and copy it.
 2. In a second terminal: `pnpm fake-grokbot --mcp-key <the key>`. It listens for the webhook at
    `http://127.0.0.1:8790/webhook` with the key `test-key`.
 3. Admin page → **Bots**: add a bot and set its webhook URL and key to those two values.
