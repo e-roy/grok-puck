@@ -72,7 +72,7 @@ function readDenylist() {
   const entries = [];
   const invalid = [];
   fs.readFileSync(file, 'utf8')
-    .replace(/^﻿/, '') // a byte-order mark (some Windows editors) would hide the first entry
+    .replace(/^\uFEFF/, '') // a byte-order mark (some Windows editors); trim() drops it too
     .split(/\r?\n/)
     .forEach((raw, i) => {
       const text = raw.trim();
