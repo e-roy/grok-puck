@@ -58,6 +58,11 @@ Enable the commit check once per clone: `git config core.hooksPath .githooks`. I
 that contain secrets or anything listed in your own `private/denylist.txt` (git-ignored); see
 [scripts/check-private.mjs](scripts/check-private.mjs).
 
+Every pull request to `main` runs four checks ([.github/workflows/ci.yml](.github/workflows/ci.yml)):
+**bridge** (type check, tests, admin page build), **docker** (the bridge image builds),
+**firmware** (the ESP-IDF v6.1 build for the ESP32-S3) and **privacy** (the commit check over every
+file, plus each commit's message, names and emails).
+
 ## Licence
 
 MIT ([LICENSE](LICENSE)), for the code, the docs and the 3D files. Third-party code:
