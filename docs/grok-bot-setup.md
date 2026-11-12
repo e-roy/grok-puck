@@ -1,5 +1,8 @@
 # Connecting Grok Bot
 
+Step 5 of the [setup guide](setup.md): by now the bridge runs behind its public hostname, and the
+admin page has your bot and an approved device.
+
 **Status: all three steps work with Grok Bot.** Typed chat, the test message and hold-to-talk all
 reach the desk. The checks at the end ([What the first connection should tell us](#what-the-first-connection-should-tell-us))
 have not been run yet.

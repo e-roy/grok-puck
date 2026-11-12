@@ -1,6 +1,7 @@
-# Grok Bot desk display
+# Grok Puck
 
-A small round touch screen that **is** one of your Grok Bots, sitting on your desk:
+A desk display for Grok Bot: a small round touch screen that **is** one of your Grok Bots, sitting on
+your desk:
 
 - it shows the bot's avatar (shape and colour as in the Grok Bot app), animated while the bot thinks
   and works;
@@ -37,11 +38,17 @@ design: [docs/spec.md](docs/spec.md).
 
 ## Getting started
 
-1. **The bridge** on an always-on machine with Docker, behind a Cloudflare Tunnel:
-   [bridge/README.md](bridge/README.md).
-2. **The device:** build and flash the firmware ([firmware/README.md](firmware/README.md)), then set it
-   up from your phone: it opens a `Desk-Setup-…` Wi-Fi network with a QR code.
-3. **Grok Bot:** connect it to the bridge: [docs/grok-bot-setup.md](docs/grok-bot-setup.md).
+**[Set up your own](docs/setup.md)**: one guide, in order, from the parts to a desk display that talks:
+
+1. the parts, and printing the case and stand;
+2. the bridge on an always-on machine with Docker, behind a Cloudflare Tunnel;
+3. the speech services and your bot, in the bridge's admin page;
+4. the device: flashing it, its Wi-Fi from your phone, approving it;
+5. connecting Grok Bot;
+6. talking to it.
+
+To try it before buying anything, the bridge comes with a fake device and a fake Grok Bot:
+[bridge/README.md](bridge/README.md#try-the-whole-loop-without-hardware-or-grok-bot).
 
 ## Hardware
 
@@ -54,16 +61,10 @@ Full BOM, print settings and the OpenSCAD sources: [hardware/](hardware/).
 
 ## Contributing
 
-Enable the privacy check once per clone: `git config core.hooksPath .githooks`. It refuses
-secrets and anything listed in your own `private/denylist.txt` (git-ignored), in two git hooks:
-**pre-commit** checks the staged files, and **pre-push** checks the commits about to be pushed
-(messages, names and emails, and what each commit adds, even if a later one removes it). See
-[scripts/check-private.mjs](scripts/check-private.mjs). It runs locally only: whatever reaches a
-pushed commit or a pull request has already been published.
-
-Every pull request to `main` runs three checks ([.github/workflows/ci.yml](.github/workflows/ci.yml)):
-**bridge** (type check, tests, admin page build), **docker** (the bridge image builds) and
-**firmware** (the ESP-IDF v6.1 build for the ESP32-S3).
+Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). In short:
+- enable the privacy check once per clone (`git config core.hooksPath .githooks`);
+- behaviour changes start in the spec;
+- every pull request must pass three checks: bridge, docker and firmware.
 
 ## Licence
 

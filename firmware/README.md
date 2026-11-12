@@ -24,7 +24,11 @@ behaviour: [docs/spec.md](../docs/spec.md) §4.
    (`wss://desk.example.com/device` behind the tunnel, or `192.168.1.20:8787` on the home network).
 5. Approve the device in the bridge's admin page.
 
-If the board doesn't flash, hold **BOOT** while plugging it in (download mode), then try again.
+If the board doesn't flash, hold **BOOT** while plugging it in (download mode), then try again. To set
+a device up again from scratch (Wi-Fi, bridge address and key), flash it with
+`idf.py -p <port> erase-flash flash`.
+
+Setting up the whole desk, in order (bridge, speech, device, Grok Bot): [docs/setup.md](../docs/setup.md).
 
 ## Layout (`main/`)
 
