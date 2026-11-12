@@ -104,7 +104,8 @@ reply. In the admin page, **History** shows a `say` entry.
    ```
 
 2. **Find the webhook details.** They show only in the **desktop** app: click the bot's name at the
-   top of the chat, open the **Details** tab, then **Routines** → **Desk voice**. Its **Webhook**
+   top of the chat. In the panel that opens, **Desk voice** is listed on the **Activity** tab under
+   **Upcoming** ("When a webhook fires", with a switch that pauses it). Click it: its **Webhook**
    section has three fields, **POST to**, **key** and **header**; clicking one copies it.
 3. **Paste them into the admin page** → **Bots** → your bot:
    - **Webhook URL:** the **POST to** value;
