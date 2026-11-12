@@ -366,15 +366,17 @@ The admin API stays as it is; anything new on the page is worked out in the page
 
 1. **Custom MCP server:** the bridge's `/mcp` URL with the `Authorization` header. It is added by asking
    the bot in chat, and the app shows a confirmation card. MCP servers are shared by every bot on the account.
-2. **Skill "Desk display"**, turned on for the bot: standing instructions to report `desk_status` while
-   working, and to call `desk_say` with every reply it writes. It also states the reply style (concise,
-   speakable).
+2. **Standing instructions**, as a skill "Desk display" turned on for the bot, or in the bot's memory
+   (skills live in one library shared by every bot, so a bot may save them to its memory instead; the
+   first bot connected did): report `desk_status` while working, and call `desk_say` with every reply
+   it writes. They also state the reply style (concise, speakable).
 3. **Routine "Desk voice"** with a webhook trigger on the bot: its instructions say the text is the
    owner speaking, to treat it exactly like a typed message, to confirm before anything destructive (an
    STT error could mean a misheard command), and to answer with `desk_say` passing the `request_id`. The webhook URL and key go
    into the admin page.
 
-The exact texts are written in M2 and kept in `docs/grok-bot-setup.md`.
+The exact texts are kept in `docs/grok-bot-setup.md`. All three steps work with Grok Bot; the M2
+measurements (context, reliability, timing) are still to be taken.
 
 ---
 
