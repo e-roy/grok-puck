@@ -18,6 +18,7 @@ let bridge: Bridge;
 let bot: FakeGrokBot;
 let device: FakeDevice;
 let botId: string;
+let mcpKey: string;
 
 async function admin<T = Record<string, unknown>>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(`http://127.0.0.1:${bridge.adminPort}${url}`, {
@@ -50,8 +51,8 @@ function next<T>(emitter: EventEmitter, event: string, check: (value: T) => bool
 before(async () => {
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'desk-bridge-'));
   bridge = await startBridge({ ...loadConfig({}), dataDir, publicPort: 0, adminPort: 0, logLevel: 'silent' });
-  const { key } = await admin<{ key: string }>('POST', '/api/mcp-key', {});
-  bot = new FakeGrokBot({ mcpUrl: `http://127.0.0.1:${bridge.publicPort}/mcp`, mcpKey: key, webhookKey: WEBHOOK_KEY, replyDelayMs: 50 });
+  ({ key: mcpKey } = await admin<{ key: string }>('POST', '/api/mcp-key', {}));
+  bot = new FakeGrokBot({ mcpUrl: `http://127.0.0.1:${bridge.publicPort}/mcp`, mcpKey, webhookKey: WEBHOOK_KEY, replyDelayMs: 50 });
   await bot.start();
   ({ id: botId } = await admin<{ id: string }>('POST', '/api/bots', {
     name: 'Desk Bot',
@@ -184,13 +185,35 @@ test('the admin page can tell an online device to forget its Wi-Fi', async () =>
   await told;
 });
 
-test('the MCP endpoint refuses a wrong key', async () => {
+/** Calls tools/list with these headers; returns the status and how Recent calls describes the call. */
+async function mcpCall(headers: Record<string, string>): Promise<{ status: number; refused?: string; headerNames: string[] }> {
   const res = await fetch(`http://127.0.0.1:${bridge.publicPort}/mcp`, {
     method: 'POST',
-    headers: { authorization: 'Bearer wrong', 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+    headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...headers },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
   });
-  assert.equal(res.status, 401);
+  await res.arrayBuffer();
+  const overview = await admin<{ mcp: { calls: Array<{ refused?: string; headerNames: string[] }> } }>('GET', '/api/overview');
+  return { status: res.status, ...overview.mcp.calls[0]! };
+}
+
+test('the MCP endpoint refuses a wrong key, and Recent calls says what the key looked like', async () => {
+  const wrong = await mcpCall({ authorization: 'Bearer wrong' });
+  assert.equal(wrong.status, 401);
+  assert.equal(wrong.refused, 'Authorization: Bearer <5 characters>');
+
+  const doubled = await mcpCall({ authorization: `Bearer Bearer ${mcpKey}` });
+  assert.equal(doubled.status, 401);
+  assert.equal(doubled.refused, 'Authorization: Bearer Bearer <the key>');
+
+  const elsewhere = await mcpCall({ 'x-api-key': mcpKey });
+  assert.equal(elsewhere.status, 401);
+  assert.equal(elsewhere.refused, 'no Authorization header; the key is in the x-api-key header');
+  assert.ok(elsewhere.headerNames.includes('x-api-key'));
+
+  const ok = await mcpCall({ authorization: `Bearer ${mcpKey}` });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.refused, undefined);
 });
 
 test('the admin API refuses changes without its header', async () => {

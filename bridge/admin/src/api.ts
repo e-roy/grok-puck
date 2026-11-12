@@ -47,6 +47,8 @@ export interface Service {
 
 export interface McpCall {
   at: string;
+  /** Set when the call was refused for its key: what the key looked like, never the key. */
+  refused?: string;
   userAgent: string;
   methods: string[];
   client: string;

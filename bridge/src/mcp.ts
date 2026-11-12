@@ -18,6 +18,8 @@ const INSTRUCTIONS =
 /** What recent MCP callers looked like, for the admin page: no secrets, no argument values. */
 export interface McpCall {
   at: string;
+  /** For a call refused for its key: what the key looked like (see describeKey). */
+  refused?: string;
   userAgent: string;
   methods: string[];
   client: string;
@@ -29,17 +31,20 @@ export interface McpCall {
 export class McpActivity {
   readonly calls: McpCall[] = [];
 
-  record(req: FastifyRequest): void {
-    const messages = (Array.isArray(req.body) ? req.body : [req.body]) as Array<{ method?: unknown; params?: unknown }>;
-    const params = (m: { params?: unknown }) => (m.params ?? {}) as Record<string, unknown>;
+  record(req: FastifyRequest, refused?: string): void {
+    const messages = (Array.isArray(req.body) ? req.body : [req.body]).slice(0, 10) as Array<{ method?: unknown; params?: unknown }>;
+    const params = (m: { params?: unknown }) => (m?.params ?? {}) as Record<string, unknown>;
     const init = messages.find((m) => m?.method === 'initialize');
     const info = init ? (params(init).clientInfo as { name?: unknown; version?: unknown } | undefined) : undefined;
     const call = messages.find((m) => m?.method === 'tools/call');
     const args = call ? params(call).arguments : undefined;
+    const methods = messages.filter((m) => m?.method !== undefined).map((m) => String(m.method));
     this.calls.unshift({
       at: new Date().toISOString(),
+      ...(refused === undefined ? {} : { refused }),
       userAgent: String(req.headers['user-agent'] ?? ''),
-      methods: messages.map((m) => String(m?.method ?? '?')),
+      // A refused GET has no JSON-RPC message: its HTTP method says what it was.
+      methods: methods.length ? methods : [req.method],
       client: info ? `${String(info.name ?? '?')} ${String(info.version ?? '')}`.trim() : '',
       tool: call ? String(params(call).name ?? '') : '',
       argumentNames: args && typeof args === 'object' ? Object.keys(args) : [],
@@ -60,6 +65,7 @@ export async function handleMcp(
     return;
   }
   if (!keyMatches(bearer(req.headers.authorization), keyHash)) {
+    ctx.activity.record(req, describeKey(req, keyHash));
     await reply.code(401).header('www-authenticate', 'Bearer').send({ error: 'unauthorized' });
     return;
   }
@@ -86,6 +92,36 @@ export async function handleMcp(
       reply.raw.end(JSON.stringify({ jsonrpc: '2.0', error: { code: -32603, message: 'internal error' }, id: null }));
     }
   }
+}
+
+const SCHEMES = /^(bearer|basic|token|api-?key)$/i;
+const unquoted = (word: string) => word.replace(/^["']+|["']+$/g, '');
+
+/**
+ * What a refused call's key looked like, without showing it: its Authorization header with each word
+ * replaced by what it is ("Authorization: Bearer <43 characters>", "Authorization: Bearer Bearer
+ * <the key>"), and any other header or URL parameter that held the key. Shown in Recent calls, so the
+ * owner can tell a wrong key from one sent in another place or form.
+ */
+export function describeKey(req: FastifyRequest, keyHash: string): string {
+  const isKey = (word: string) => keyMatches(unquoted(word), keyHash);
+  const shape = (word: string) => {
+    if (SCHEMES.test(word)) return word;
+    if (keyMatches(word, keyHash)) return '<the key>';
+    if (isKey(word)) return '<the key in quotes>';
+    return `<${word.length} characters>`;
+  };
+  const notes: string[] = [];
+  const auth = req.headers.authorization?.trim();
+  notes.push(auth ? `Authorization: ${auth.split(/\s+/).slice(0, 4).map(shape).join(' ')}` : 'no Authorization header');
+  for (const [name, value] of Object.entries(req.headers).slice(0, 60)) {
+    if (name === 'authorization' || typeof value !== 'string') continue;
+    if (value.split(/\s+/).slice(0, 8).some(isKey)) notes.push(`the key is in the ${name} header`);
+  }
+  for (const [name, value] of Object.entries((req.query ?? {}) as Record<string, unknown>).slice(0, 20)) {
+    if (typeof value === 'string' && isKey(value)) notes.push(`the key is in the URL (?${name}=)`);
+  }
+  return notes.join('; ');
 }
 
 function buildServer(desk: Desk): McpServer {

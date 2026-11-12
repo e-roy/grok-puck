@@ -20,9 +20,16 @@ export function GrokBot({ data, run }: SectionProps) {
   const create = () =>
     void run(async () => setKey((await api<{ key: string }>('POST', '/api/mcp-key', {})).key), 'New MCP key created. Copy it now: it is shown only once.');
   const webhooks = data.bots.filter((b) => b.webhookUrl.startsWith('https://'));
-  const lastCall = data.mcp.calls[0];
+  const accepted = data.mcp.calls.filter((c) => !c.refused);
+  const lastCall = accepted[0];
+  const lastRefused = data.mcp.calls[0]?.refused ? data.mcp.calls[0] : undefined;
   // Only a session's first call (initialize) names the client; later calls in it don't.
-  const lastClient = data.mcp.calls.find((c) => c.client)?.client;
+  const lastClient = accepted.find((c) => c.client)?.client;
+  const callStatus = lastCall
+    ? `last call ${ago(lastCall.at)}${lastClient ? ` from ${lastClient}` : ''}`
+    : lastRefused
+      ? `refused ${ago(lastRefused.at)}: wrong key or header`
+      : 'no calls yet';
 
   return (
     <>
@@ -88,7 +95,7 @@ export function GrokBot({ data, run }: SectionProps) {
           </CardHeader>
           <CardContent>
             <ol className="flex flex-col gap-4">
-              <SetupStep n={1} title="Custom MCP server" done={Boolean(lastCall)} status={lastCall ? `last call ${ago(lastCall.at)}${lastClient ? ` from ${lastClient}` : ''}` : 'no calls yet'}>
+              <SetupStep n={1} title="Custom MCP server" done={Boolean(lastCall)} status={callStatus}>
                 Ask your bot in chat to add the MCP server above, with the header; the app shows a confirmation card.
               </SetupStep>
               <SetupStep n={2} title={'Skill "Desk display"'} status="text comes in M2">
@@ -113,7 +120,7 @@ export function GrokBot({ data, run }: SectionProps) {
         <Card>
           <CardHeader>
             <CardTitle>Recent calls</CardTitle>
-            <CardDescription>What called the MCP server, newest first.</CardDescription>
+            <CardDescription>What called the MCP server, newest first, including calls refused for their key.</CardDescription>
           </CardHeader>
           <CardContent>
             {data.mcp.calls.length === 0 ? (
@@ -167,11 +174,22 @@ function CallRow({ call }: { call: McpCall }) {
         <CollapsibleTrigger className="group flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50">
           <span className="w-20 shrink-0 text-xs text-muted-foreground tabular-nums">{when(call.at)}</span>
           <span className="min-w-0 flex-1 truncate font-medium">{call.tool || call.methods.join(', ')}</span>
+          {call.refused && (
+            <Badge variant="outline" className="text-destructive">
+              refused
+            </Badge>
+          )}
           {call.client && <span className="hidden truncate text-xs text-muted-foreground sm:block">{call.client}</span>}
           <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-panel-open:rotate-180" aria-hidden />
         </CollapsibleTrigger>
         <CollapsibleContent>
           <dl className="mx-2 mb-2 grid grid-cols-[6rem_1fr] gap-x-3 gap-y-1 rounded-lg bg-muted/50 p-3 text-xs">
+            {call.refused && (
+              <>
+                <dt className="text-muted-foreground">Refused</dt>
+                <dd className="font-mono break-all">{call.refused}</dd>
+              </>
+            )}
             <dt className="text-muted-foreground">Client</dt>
             <dd>{call.client || '—'}</dd>
             <dt className="text-muted-foreground">User agent</dt>
