@@ -6,6 +6,10 @@
 #   desk.example.com        → http://bridge:8787   devices and Grok Bot (no Access policy here)
 #   desk-admin.example.com  → http://bridge:8788   the admin page (protect it with an Access application)
 
+# The project name, so the containers and the data volume (grok-puck_bridge_data) keep their names
+# whatever the folder is called.
+name: grok-puck
+
 services:
   bridge:
     build: .

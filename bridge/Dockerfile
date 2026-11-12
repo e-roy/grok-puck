@@ -8,7 +8,7 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@11.2.2 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY admin/package.json admin/
-RUN pnpm install --frozen-lockfile --filter desk-bridge-admin
+RUN pnpm install --frozen-lockfile --filter grok-puck-admin
 COPY admin admin
 RUN pnpm build:admin
 
@@ -17,7 +17,7 @@ WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@11.2.2 --activate
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY admin/package.json admin/
-RUN pnpm install --frozen-lockfile --prod --filter desk-bridge
+RUN pnpm install --frozen-lockfile --prod --filter grok-puck
 COPY src src
 COPY --from=build /app/admin/dist admin/dist
 ENV NODE_ENV=production DATA_DIR=/data

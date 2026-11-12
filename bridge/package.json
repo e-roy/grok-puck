@@ -1,5 +1,5 @@
 {
-  "name": "desk-bridge",
+  "name": "grok-puck",
   "version": "0.1.0",
   "description": "Bridge between a desk display, Grok Bot (routine webhook + MCP) and speech services",
   "license": "MIT",
@@ -18,10 +18,10 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env src/main.ts",
     "dev": "node --env-file-if-exists=.env --watch src/main.ts",
-    "check": "tsc -p tsconfig.json && pnpm --filter desk-bridge-admin check",
+    "check": "tsc -p tsconfig.json && pnpm --filter grok-puck-admin check",
     "test": "node --test test/*.test.ts",
-    "build:admin": "pnpm --filter desk-bridge-admin build",
-    "dev:admin": "pnpm --filter desk-bridge-admin dev",
+    "build:admin": "pnpm --filter grok-puck-admin build",
+    "dev:admin": "pnpm --filter grok-puck-admin dev",
     "fake-device": "node tools/fake-device.ts",
     "fake-grokbot": "node tools/fake-grokbot.ts"
   },

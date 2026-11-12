@@ -1,5 +1,5 @@
 {
-  "name": "desk-bridge-admin",
+  "name": "grok-puck-admin",
   "version": "0.1.0",
   "description": "The desk bridge's admin page: built into static files that the bridge serves",
   "license": "MIT",
