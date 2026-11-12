@@ -2,13 +2,13 @@
 
 ## Bill of materials
 
-| Qty | Part | Notes |
-|---|---|---|
-| 1 | Waveshare **ESP32-S3-Touch-LCD-1.46**, cover-glass version | 1.46" 412×412 round touch display, ESP32-S3 (8 MB PSRAM, 16 MB flash), microphone, speaker |
-| 3 | **M2×4** button-head hex-socket machine screws | slim case: through the back into the board's own brass standoffs. **Nothing longer than 4 mm**: an M2×4 ends about 1 mm short of the PCB |
-| 1 | **90° up/down-angle USB-C cable** | the cable leaves the plug toward its front or back face, not sideways. The stand's slot is 15 mm wide, sized for a plug head of about 13 × 11 × 9 mm: check the head before buying |
-| 1 | 5 V USB power supply | the device runs on USB power only |
-| | PLA filament | case, stand, button plungers |
+| Qty | Part | Notes | Where to buy |
+|---|---|---|---|
+| 1 | Waveshare **ESP32-S3-Touch-LCD-1.46**, cover-glass version | 1.46" 412×412 round touch display, ESP32-S3 (8 MB PSRAM, 16 MB flash), microphone, speaker | *link coming soon* |
+| 3 | **M2×4** button-head hex-socket machine screws | slim case: through the back into the board's own brass standoffs. **Nothing longer than 4 mm**: an M2×4 ends about 1 mm short of the PCB | *link coming soon* |
+| 1 | **90° up/down-angle USB-C cable** | the cable leaves the plug toward its front or back face, not sideways. The stand's slot is 15 mm wide, sized for a plug head of about 13 × 11 × 9 mm: check the head before buying | *link coming soon* |
+| 1 | 5 V USB power supply | the device runs on USB power only | *link coming soon* |
+| | PLA filament | case, stand, button plungers | any PLA |
 
 The earlier, larger case (`case-v1/`) uses **3 × M2×8 pan-head self-tapping screws** instead, into
 2.1 mm pilot holes.
@@ -16,6 +16,9 @@ The earlier, larger case (`case-v1/`) uses **3 × M2×8 pan-head self-tapping sc
 ## Prints
 
 All parts: PLA, 0.4 mm nozzle, 0.20 mm layers, no supports, oriented as exported.
+
+**Ready-to-print files:** [print-files/](print-files/) *(coming soon)*. Until they are there, print the
+STL files below.
 
 ### Slim case and stand (`case-slim/`, current design)
 
