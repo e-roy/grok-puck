@@ -142,7 +142,7 @@ function Brand() {
       <span className="grid size-7 place-items-center rounded-lg bg-primary text-primary-foreground">
         <BotIcon className="size-4" />
       </span>
-      Desk Bridge
+      Grok Puck
     </a>
   );
 }
