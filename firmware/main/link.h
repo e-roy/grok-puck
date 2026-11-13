@@ -35,11 +35,26 @@ typedef struct {
     void (*audio)(const uint8_t *pcm, size_t bytes);
     void (*play_end)(const char *id);
     void (*stop)(void);
-    void (*forget_wifi)(void);
+    void (*wifi_setup)(void);                   // open the setup network for a while
+    void (*forget_network)(const char *ssid);   // a name as this device reported it
+    void (*forget_wifi)(void);                  // forget every network
 } link_handlers_t;
+
+// What the device tells the bridge about its Wi-Fi: names only, never a password.
+#define LINK_MAX_NETWORKS 5
+typedef struct {
+    char saved[LINK_MAX_NETWORKS][33];  // valid UTF-8, most recently joined first
+    int count;
+    char current[33];  // "" when not on Wi-Fi
+    int rssi;          // dBm, with `current`
+    bool setup;        // the setup network is open
+} link_wifi_t;
 
 esp_err_t link_start(const char *url, const char *device_id, const char *firmware, const char *key,
                      const link_handlers_t *handlers);
+
+// Keeps the Wi-Fi report for every hello, and sends it now if the link is up and it changed.
+void link_set_wifi(const link_wifi_t *wifi);
 
 void link_send_played(const char *id, bool stopped);
 void link_send_stop(void);

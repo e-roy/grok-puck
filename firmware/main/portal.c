@@ -8,28 +8,25 @@
 #include "esp_heap_caps.h"
 #include "esp_http_server.h"
 #include "esp_log.h"
-#include "esp_system.h"
-#include "esp_timer.h"
-#include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "lwip/inet.h"
 #include "lwip/sockets.h"
+#include "net.h"
+#include "settings.h"
 
 static const char *TAG = "setup";
 
-#define MAX_NETWORKS 16
-#define PAGE_SIZE 9000
+#define MAX_NEARBY 16
+#define PAGE_SIZE 16384
 #define BODY_SIZE 640
+#define SCAN_WAIT_MS 5000
 
 static httpd_handle_t server;
 static uint32_t portal_ip;  // network byte order
 static char root_url[32];
-static const settings_t *saved;
 static volatile bool dns_running;
 static TaskHandle_t dns_task_handle;
-static wifi_ap_record_t *networks;
-static int network_count;
 
 // ---- DNS: every A query is answered with the device's address ----
 
@@ -188,22 +185,33 @@ bool portal_bridge_url(const char *typed, char *out, size_t size) {
     return n > 0 && (size_t)n < size;
 }
 
-static void scan_networks(void) {
-    const wifi_scan_config_t cfg = {.show_hidden = false};
-    if (esp_wifi_scan_start(&cfg, true) != ESP_OK) {
-        ESP_LOGW(TAG, "network scan failed");
-        return;
+
+// A Wi-Fi name as hex, so a Forget button names it exactly whatever bytes it holds.
+static void put_hex(page_t *p, const char *s) {
+    static const char HEX[] = "0123456789abcdef";
+    for (; *s; s++) {
+        const char c[3] = {HEX[(unsigned char)*s >> 4], HEX[(unsigned char)*s & 0xf], 0};
+        put(p, c);
     }
-    uint16_t found = MAX_NETWORKS;
-    if (esp_wifi_scan_get_ap_records(&found, networks) != ESP_OK) found = 0;
-    // Drop hidden and repeated names (one network with several access points); the strongest stays.
-    int kept = 0;
-    for (int i = 0; i < found; i++) {
-        bool repeat = networks[i].ssid[0] == '\0';
-        for (int j = 0; j < kept && !repeat; j++) repeat = strcmp((char *)networks[j].ssid, (char *)networks[i].ssid) == 0;
-        if (!repeat) networks[kept++] = networks[i];
+}
+
+static bool from_hex(const char *hex, char *out, size_t size) {
+    const size_t n = strlen(hex);
+    if (n == 0 || n % 2 || n / 2 >= size) return false;
+    for (size_t i = 0; i < n / 2; i++) {
+        const int hi = hex_value(hex[2 * i]), lo = hex_value(hex[2 * i + 1]);
+        if (hi < 0 || lo < 0 || (hi == 0 && lo == 0)) return false;
+        out[i] = (char)(hi << 4 | lo);
     }
-    network_count = kept;
+    out[n / 2] = '\0';
+    return true;
+}
+
+static const char *signal_word(int rssi) {
+    if (rssi >= -55) return "strong";
+    if (rssi >= -67) return "good";
+    if (rssi >= -75) return "fair";
+    return "weak";
 }
 
 // ---- pages ----
@@ -212,126 +220,282 @@ static const char PAGE_HEAD[] =
     "<!doctype html><html lang=en><head><meta charset=utf-8>"
     "<meta name=viewport content=\"width=device-width,initial-scale=1\"><title>Desk display setup</title><style>"
     "body{font:16px/1.4 system-ui,sans-serif;margin:0;padding:20px;background:#111;color:#eee}"
-    "main{max-width:420px;margin:auto}h1{font-size:22px}"
-    "label{display:block;margin:16px 0 6px;font-weight:600}"
+    "main{max-width:420px;margin:auto}h1{font-size:22px}h2{font-size:17px;margin:30px 0 4px}"
+    "label{display:block;margin:14px 0 6px;font-weight:600}"
     "input{width:100%;box-sizing:border-box;padding:11px;font-size:16px;border-radius:8px;border:1px solid #555;"
     "background:#1c1c1c;color:#eee}"
     ".nets{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}"
     ".nets button{background:#262626;color:#eee;border:1px solid #444;border-radius:16px;padding:6px 12px;font-size:14px}"
-    "button.go{margin-top:24px;width:100%;padding:13px;font-size:16px;border:0;border-radius:8px;background:#f59e0b;"
+    ".nets small{color:#86efac}"
+    "button.go{margin-top:18px;width:100%;padding:13px;font-size:16px;border:0;border-radius:8px;background:#f59e0b;"
     "color:#111;font-weight:700}"
-    ".note{color:#aaa;font-size:14px;margin:6px 0 0}.err{background:#3b1d1d;border-radius:8px;padding:10px 12px;color:#fca5a5}"
-    "a{color:#fbbf24}code{color:#fde68a}"
+    "ul{list-style:none;padding:0;margin:8px 0}li{display:flex;align-items:center;gap:10px;padding:10px 0;"
+    "border-bottom:1px solid #2a2a2a}li div{flex:1;min-width:0;overflow-wrap:anywhere}"
+    "li button{background:none;color:#fca5a5;border:1px solid #7f1d1d;border-radius:8px;padding:8px 12px;font-size:14px}"
+    ".note{color:#aaa;font-size:14px;margin:6px 0 0}.err,.ok,.info{border-radius:8px;padding:10px 12px;margin:12px 0}"
+    ".err{background:#3b1d1d;color:#fca5a5}.ok{background:#14301f;color:#86efac}.info{background:#262626}"
+    "a{color:#fbbf24}code{color:#fde68a}button:disabled{opacity:.6}"
+    ".spin{display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid #555;"
+    "border-top-color:#f59e0b;border-radius:50%;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(1turn)}}"
     "</style></head><body><main>";
 static const char PAGE_TAIL[] = "</main></body></html>";
 
+// While a network is being checked: ask every 2 s, and show the result once it is in. The phone may be
+// off the setup network for a while (the device's radio moves to the new network's channel), so a
+// request that fails is simply tried again.
+static const char POLL_SCRIPT[] =
+    "<script>(function p(){setTimeout(function(){var c=new AbortController(),t=setTimeout(function(){c.abort()},3000);"
+    "fetch('/status',{cache:'no-store',signal:c.signal}).then(function(r){return r.json()}).then(function(s){"
+    "clearTimeout(t);s.add==='checking'?p():location.replace('/')}).catch(function(){clearTimeout(t);p()})},2000)})()"
+    "</script>";
+
+static page_t new_page(void) {
+    page_t p = {.buf = heap_caps_malloc(PAGE_SIZE, MALLOC_CAP_SPIRAM), .size = PAGE_SIZE};
+    if (p.buf) {
+        p.buf[0] = '\0';
+        put(&p, PAGE_HEAD);
+    }
+    return p;
+}
+
 static esp_err_t send_page(httpd_req_t *req, page_t *p) {
+    put(p, PAGE_TAIL);
     httpd_resp_set_type(req, "text/html; charset=utf-8");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    return httpd_resp_send(req, p->buf, p->len);
-}
-
-static esp_err_t root_get(httpd_req_t *req) {
-    char query[16] = "";
-    if (httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK && strstr(query, "scan")) scan_networks();
-    if (network_count == 0) scan_networks();
-
-    page_t p = {.buf = heap_caps_malloc(PAGE_SIZE, MALLOC_CAP_SPIRAM), .size = PAGE_SIZE};
-    if (!p.buf) return httpd_resp_send_500(req);
-    p.buf[0] = '\0';
-    put(&p, PAGE_HEAD);
-    put(&p, "<h1>Desk display setup</h1>");
-    if (saved->last_error[0]) {
-        put(&p, "<p class=err>");
-        put_escaped(&p, saved->last_error);
-        put(&p, "</p>");
-    }
-    put(&p, "<form method=post action=/save><label for=ssid>Wi-Fi network</label>"
-            "<input id=ssid name=ssid maxlength=32 required autocomplete=off autocapitalize=off value=\"");
-    put_escaped(&p, saved->wifi_ssid);
-    put(&p, "\"><div class=nets>");
-    for (int i = 0; i < network_count; i++) {
-        put(&p, "<button type=button onclick=\"ssid.value=this.textContent;pass.focus()\">");
-        put_escaped(&p, (const char *)networks[i].ssid);
-        put(&p, "</button>");
-    }
-    put(&p, "</div><p class=note><a href=\"/?scan=1\">Search again</a></p>"
-            "<label for=pass>Wi-Fi password</label>"
-            "<input id=pass name=pass type=password maxlength=64 autocomplete=off>"
-            "<label for=bridge>Bridge address</label>"
-            "<input id=bridge name=bridge maxlength=180 required autocomplete=off autocapitalize=off spellcheck=false "
-            "placeholder=\"wss://desk.example.com\" value=\"");
-    put_escaped(&p, saved->bridge_url);
-    put(&p, "\"><p class=note>Through the tunnel: its name, like <code>desk.example.com</code>. On the home network: "
-            "the computer running the bridge and port 8787, like <code>192.168.1.20:8787</code>.</p>"
-            "<button class=go>Save and connect</button></form>");
-    put(&p, PAGE_TAIL);
-    const esp_err_t err = send_page(req, &p);
-    heap_caps_free(p.buf);
+    const esp_err_t err = httpd_resp_send(req, p->buf, p->len);
+    heap_caps_free(p->buf);
     return err;
-}
-
-static void restart_now(void *arg) {
-    (void)arg;
-    esp_restart();
 }
 
 static esp_err_t message_page(httpd_req_t *req, const char *html) {
-    page_t p = {.buf = heap_caps_malloc(PAGE_SIZE, MALLOC_CAP_SPIRAM), .size = PAGE_SIZE};
+    page_t p = new_page();
     if (!p.buf) return httpd_resp_send_500(req);
-    p.buf[0] = '\0';
-    put(&p, PAGE_HEAD);
     put(&p, html);
-    put(&p, PAGE_TAIL);
-    const esp_err_t err = send_page(req, &p);
-    heap_caps_free(p.buf);
-    return err;
+    return send_page(req, &p);
 }
 
-static esp_err_t save_post(httpd_req_t *req) {
-    char body[BODY_SIZE];
-    if (req->content_len >= sizeof(body)) return message_page(req, "<p class=err>That was too long.</p><p><a href=/>Back</a></p>");
+static esp_err_t problem_page(httpd_req_t *req, const char *problem) {
+    page_t p = new_page();
+    if (!p.buf) return httpd_resp_send_500(req);
+    put(&p, "<p class=err>");
+    put_escaped(&p, problem);
+    put(&p, "</p><p><a href=/>Back</a></p>");
+    return send_page(req, &p);
+}
+
+// After a form: back to the page, so reloading it doesn't send the form again.
+static esp_err_t back_to_page(httpd_req_t *req) {
+    httpd_resp_set_status(req, "303 See Other");
+    httpd_resp_set_hdr(req, "Location", "/");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_send(req, NULL, 0);
+}
+
+static void put_banners(page_t *p, const net_add_t *add, int saved_count, bool bridge_set) {
+    if (add->state == NET_ADD_CHECKING) {
+        put(p, "<p class=info role=status><span class=spin aria-hidden=true></span>Checking <b>");
+        put_escaped(p, add->ssid);
+        put(p, "</b>: the display joins it to check the password, which takes a few seconds. This phone may leave the "
+               "setup network for a moment. If it doesn't come back by itself, join <b>");
+        put_escaped(p, net_setup_ssid());
+        put(p, "</b> again: this page shows the result.</p>");
+        put(p, POLL_SCRIPT);
+    } else if (add->state == NET_ADD_JOINED) {
+        put(p, "<p class=ok>Saved <b>");
+        put_escaped(p, add->ssid);
+        put(p, "</b>: the display joined it.</p>");
+    } else if (add->state == NET_ADD_FAILED) {
+        put(p, "<p class=err>Couldn't add <b>");
+        put_escaped(p, add->ssid);
+        put(p, "</b>: ");
+        put_escaped(p, add->problem);
+        put(p, ". The saved networks are unchanged.</p>");
+    }
+    const int why = net_setup_why();
+    if (why & NET_WHY_NO_WIFI) {
+        put(p, saved_count ? "<p class=err>None of the saved networks could be joined. Add one that is in reach, or "
+                             "add it again with its password.</p>"
+                           : "<p class=info>Add a Wi-Fi network for the display (2.4 GHz).</p>");
+    } else if (why & NET_WHY_NO_BRIDGE) {
+        put(p, bridge_set ? "<p class=err>On Wi-Fi, but the bridge can't be reached. Check its address below, or "
+                            "add another network.</p>"
+                          : "<p class=info>On Wi-Fi. Now type the bridge address below.</p>");
+    } else if (why & NET_WHY_ASKED) {
+        put(p, "<p class=info>Opened from the admin page. The display stays online, and this setup network closes "
+               "by itself after 10 minutes.</p>");
+    }
+}
+
+static esp_err_t root_get(httpd_req_t *req) {
+    net_page_used();
+    net_add_t add;
+    net_add_result(&add);
+    const bool checking = add.state == NET_ADD_CHECKING;
+    char query[16] = "";
+    if (!checking && httpd_req_get_url_query_str(req, query, sizeof(query)) == ESP_OK && strstr(query, "scan")) {
+        net_scan(SCAN_WAIT_MS);
+    }
+    net_nearby_t nearby[MAX_NEARBY];
+    int nearby_count = net_nearby(nearby, MAX_NEARBY);
+    if (nearby_count == 0 && !checking) {
+        net_scan(SCAN_WAIT_MS);
+        nearby_count = net_nearby(nearby, MAX_NEARBY);
+    }
+    net_saved_t saved[SETTINGS_MAX_NETWORKS];
+    const int saved_count = net_saved(saved);
+    for (int i = 0; i < nearby_count; i++) {  // as saved now, not at the scan
+        nearby[i].saved = false;
+        for (int j = 0; j < saved_count; j++) nearby[i].saved |= strcmp(nearby[i].ssid, saved[j].ssid) == 0;
+    }
+    settings_t s;
+    settings_load(&s);
+
+    page_t p = new_page();
+    if (!p.buf) return httpd_resp_send_500(req);
+    put(&p, "<h1>Desk display setup</h1>");
+    put_banners(&p, &add, saved_count, s.bridge_url[0] != '\0');
+
+    // The button says what is happening from the moment it is pressed, until the page shows the check.
+    put(&p, "<h2>Add a network</h2><form method=post action=/add "
+            "onsubmit=\"var b=this.querySelector('button.go');b.disabled=true;b.textContent='Checking\\u2026'\">"
+            "<label for=ssid>Network</label>"
+            "<input id=ssid name=ssid maxlength=32 required autocomplete=off autocapitalize=off spellcheck=false>"
+            "<div class=nets>");
+    for (int i = 0; i < nearby_count; i++) {
+        put(&p, "<button type=button data-n=\"");
+        put_escaped(&p, nearby[i].ssid);
+        put(&p, "\" onclick=\"ssid.value=this.dataset.n;pass.focus()\">");
+        put_escaped(&p, nearby[i].ssid);
+        if (nearby[i].saved) put(&p, " <small>saved</small>");
+        put(&p, "</button>");
+    }
+    put(&p, "</div><p class=note>");
+    if (nearby_count == 0) put(&p, "No networks found. ");
+    put(&p, "<a href=\"/?scan=1\">Search again</a> · 2.4 GHz networks only</p>"
+            "<label for=pass>Password</label>"
+            "<input id=pass name=pass type=password maxlength=63 autocomplete=off>"
+            "<button class=go>Add</button><p class=note>The display joins the network first, to check the password. "
+            "Saving a network that is saved already changes its password.</p></form>");
+
+    char line[96];
+    snprintf(line, sizeof(line), "<h2>Saved networks (%d of %d)</h2>", saved_count, SETTINGS_MAX_NETWORKS);
+    put(&p, line);
+    if (saved_count == 0) put(&p, "<p class=note>None yet.</p>");
+    if (saved_count > 0) put(&p, "<ul>");
+    for (int i = 0; i < saved_count; i++) {
+        const net_saved_t *n = &saved[i];
+        put(&p, "<li><div>");
+        put_escaped(&p, n->ssid);
+        put(&p, "<br><span class=note>");
+        if (n->state == NET_SAVED_IN_USE) {
+            snprintf(line, sizeof(line), "In use, signal %s (%d dBm)", signal_word(n->rssi), n->rssi);
+        } else if (n->state == NET_SAVED_NEARBY) {
+            snprintf(line, sizeof(line), "In reach, signal %s", signal_word(n->rssi));
+        } else {
+            snprintf(line, sizeof(line), "Not in reach");
+        }
+        put(&p, line);
+        if (n->problem[0]) {
+            put(&p, ". Last try: ");
+            put_escaped(&p, n->problem);
+        }
+        put(&p, "</span></div><form method=post action=/forget><input type=hidden name=id value=");
+        put_hex(&p, n->ssid);
+        put(&p, "><button aria-label=\"Forget ");
+        put_escaped(&p, n->ssid);
+        put(&p, "\">Forget</button></form></li>");
+    }
+    if (saved_count > 0) put(&p, "</ul>");
+
+    put(&p, "<h2>Bridge</h2><form method=post action=/bridge><label for=bridge>Bridge address</label>"
+            "<input id=bridge name=bridge maxlength=180 required autocomplete=off autocapitalize=off spellcheck=false "
+            "placeholder=\"wss://desk.example.com\" value=\"");
+    put_escaped(&p, s.bridge_url);
+    memset(&s, 0, sizeof(s));  // it holds the device key
+    put(&p, "\"><p class=note>Through the tunnel: its name, like <code>desk.example.com</code>, which works from any "
+            "network. On the home network only: the computer running the bridge and port 8787, like "
+            "<code>192.168.1.20:8787</code>. A new address removes this display's key: approve it again in that "
+            "bridge's admin page.</p><button class=go>Save the address</button></form>"
+            "<p class=note>When you close this page, a phone may warn that this network has no internet. That is "
+            "expected: it is the display's own setup network.</p>");
+    return send_page(req, &p);
+}
+
+static esp_err_t status_get(httpd_req_t *req) {
+    net_page_used();
+    net_add_t add;
+    net_add_result(&add);
+    static const char *const STATES[] = {"", "checking", "joined", "failed"};
+    char json[48];
+    snprintf(json, sizeof(json), "{\"add\":\"%s\"}", STATES[add.state]);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    return httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
+}
+
+static bool read_body(httpd_req_t *req, char *body, size_t size) {
+    if (req->content_len >= size) return false;
     size_t got = 0;
     while (got < req->content_len) {
         const int n = httpd_req_recv(req, body + got, req->content_len - got);
-        if (n <= 0) return ESP_FAIL;
+        if (n <= 0) return false;
         got += n;
     }
     body[got] = '\0';
+    return true;
+}
 
-    char ssid[33], pass[65], typed[192], url[192];
-    const bool ok = form_field(body, "ssid", ssid, sizeof(ssid)) && form_field(body, "pass", pass, sizeof(pass)) &&
-                    form_field(body, "bridge", typed, sizeof(typed));
+static esp_err_t add_post(httpd_req_t *req) {
+    net_page_used();
+    char body[BODY_SIZE];
+    if (!read_body(req, body, sizeof(body))) return problem_page(req, "That was too long.");
+    char ssid[33], pass[65];
+    const bool ok = form_field(body, "ssid", ssid, sizeof(ssid)) && form_field(body, "pass", pass, sizeof(pass));
     memset(body, 0, sizeof(body));  // the password
     const size_t pass_len = strlen(pass);
     const char *problem = NULL;
     if (!ok || ssid[0] == '\0') {
-        problem = "Choose or type the Wi-Fi network.";
+        problem = "Choose or type the network's name.";
     } else if (pass_len != 0 && (pass_len < 8 || pass_len > 63)) {
         problem = "A Wi-Fi password has 8 to 63 characters (or none for an open network).";
-    } else if (!portal_bridge_url(typed, url, sizeof(url))) {
-        problem = "The bridge address doesn't look right. Example: desk.example.com or 192.168.1.20:8787";
+    } else {
+        problem = net_add(ssid, pass);
     }
-    if (problem) {
-        memset(pass, 0, sizeof(pass));
-        char html[320];
-        snprintf(html, sizeof(html), "<p class=err>%s</p><p><a href=/>Back</a></p>", problem);
-        return message_page(req, html);
-    }
-
-    const esp_err_t saved_ok = settings_save_setup(ssid, pass, url);
     memset(pass, 0, sizeof(pass));
-    if (saved_ok != ESP_OK) {
-        ESP_LOGE(TAG, "saving the settings failed: %s", esp_err_to_name(saved_ok));
-        return message_page(req, "<p class=err>The settings could not be saved. Try again.</p><p><a href=/>Back</a></p>");
+    if (problem) return problem_page(req, problem);
+    ESP_LOGI(TAG, "checking a network before saving it");
+    return back_to_page(req);
+}
+
+static esp_err_t forget_post(httpd_req_t *req) {
+    net_page_used();
+    char body[BODY_SIZE], hex[80], ssid[33];
+    if (!read_body(req, body, sizeof(body)) || !form_field(body, "id", hex, sizeof(hex)) || !from_hex(hex, ssid, sizeof(ssid))) {
+        return problem_page(req, "That network wasn't recognised.");
     }
-    ESP_LOGI(TAG, "settings saved; restarting to join the network");
-    message_page(req, "<h1>Saved</h1><p>The display restarts and joins your Wi-Fi. This page can be closed.</p>"
-                      "<p class=note>If it can't join, this setup network opens again within about a minute.</p>");
-    static esp_timer_handle_t restart_timer;
-    const esp_timer_create_args_t args = {.callback = restart_now, .name = "restart"};
-    if (!restart_timer && esp_timer_create(&args, &restart_timer) == ESP_OK) esp_timer_start_once(restart_timer, 1500 * 1000);
-    return ESP_OK;
+    if (!net_forget_network(ssid)) return problem_page(req, "That network isn't saved any more.");
+    return back_to_page(req);
+}
+
+static esp_err_t bridge_post(httpd_req_t *req) {
+    net_page_used();
+    char body[BODY_SIZE], typed[192], url[192];
+    if (!read_body(req, body, sizeof(body)) || !form_field(body, "bridge", typed, sizeof(typed)) ||
+        !portal_bridge_url(typed, url, sizeof(url))) {
+        return problem_page(req, "The bridge address doesn't look right. Example: desk.example.com or 192.168.1.20:8787");
+    }
+    bool changed = false;
+    const esp_err_t err = settings_save_bridge(url, &changed);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "saving the bridge address failed: %s", esp_err_to_name(err));
+        return problem_page(req, "The address could not be saved. Try again.");
+    }
+    if (!changed) return back_to_page(req);
+    ESP_LOGI(TAG, "new bridge address saved");
+    net_bridge_saved();
+    return message_page(req, "<h1>Saved</h1><p>The display connects to this bridge now (restarting first if it was "
+                             "connected to another one), and waits there for approval: approve it in that bridge's "
+                             "admin page.</p><p><a href=/>Back to setup</a></p>");
 }
 
 // Every other address leads to the setup page; this is also what makes phones notice it.
@@ -343,18 +507,14 @@ static esp_err_t redirect(httpd_req_t *req, httpd_err_code_t err) {
     return httpd_resp_send(req, "Desk display setup", HTTPD_RESP_USE_STRLEN);  // iOS wants a body
 }
 
-esp_err_t portal_start(uint32_t ip, const settings_t *settings) {
+esp_err_t portal_start(uint32_t ip) {
     if (server) return ESP_OK;
     portal_ip = ip;
-    saved = settings;
     struct in_addr a = {.s_addr = ip};
     snprintf(root_url, sizeof(root_url), "http://%s/", inet_ntoa(a));
-    if (!networks) networks = heap_caps_calloc(MAX_NETWORKS, sizeof(wifi_ap_record_t), MALLOC_CAP_SPIRAM);
-    network_count = 0;
-    if (networks) scan_networks();
 
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
-    cfg.stack_size = 6144;
+    cfg.stack_size = 8192;
     cfg.max_open_sockets = 7;
     cfg.lru_purge_enable = true;
     esp_err_t err = httpd_start(&server, &cfg);
@@ -362,10 +522,14 @@ esp_err_t portal_start(uint32_t ip, const settings_t *settings) {
         ESP_LOGE(TAG, "web server could not start: %s", esp_err_to_name(err));
         return err;
     }
-    const httpd_uri_t root = {.uri = "/", .method = HTTP_GET, .handler = root_get};
-    const httpd_uri_t save = {.uri = "/save", .method = HTTP_POST, .handler = save_post};
-    httpd_register_uri_handler(server, &root);
-    httpd_register_uri_handler(server, &save);
+    static const httpd_uri_t routes[] = {
+        {.uri = "/", .method = HTTP_GET, .handler = root_get},
+        {.uri = "/status", .method = HTTP_GET, .handler = status_get},
+        {.uri = "/add", .method = HTTP_POST, .handler = add_post},
+        {.uri = "/forget", .method = HTTP_POST, .handler = forget_post},
+        {.uri = "/bridge", .method = HTTP_POST, .handler = bridge_post},
+    };
+    for (size_t i = 0; i < sizeof(routes) / sizeof(routes[0]); i++) httpd_register_uri_handler(server, &routes[i]);
     httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, redirect);
 
     dns_running = true;

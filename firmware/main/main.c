@@ -34,6 +34,7 @@ static char firmware[48];
 // What the face should show, from these inputs. Changed only with the LVGL lock held.
 static bool on_wifi;
 static bool in_setup;
+static bool link_started;  // on the Wi-Fi task
 static link_status_t link_status = LINK_CONNECTING;
 static face_state_t bridge_state = FACE_IDLE;  // what the bridge last asked for
 static bool speaking;
@@ -61,6 +62,7 @@ static void refresh_face(void) {
 
 static void on_status(link_status_t status) {
     if (status == LINK_CONNECTING && player_stop()) ESP_LOGI(TAG, "link lost: speech stopped");
+    net_bridge_link(status != LINK_CONNECTING);  // pending, approved or refused: the bridge answers
     lvgl_port_lock(0);
     link_status = status;
     if (status == LINK_CONNECTING) speaking = false;
@@ -140,12 +142,20 @@ static void restart(void *arg) {
     esp_restart();
 }
 
-static void on_forget_wifi(void) {
-    settings_forget_wifi();
-    // Restart a moment later, outside the link's task; setup opens at once (no network saved).
+// Restarts in a moment, outside the calling task, once a page or a message has gone out.
+static void restart_soon(int ms) {
     const esp_timer_create_args_t args = {.callback = restart, .name = "restart"};
     esp_timer_handle_t timer;
-    if (esp_timer_create(&args, &timer) == ESP_OK) esp_timer_start_once(timer, 500 * 1000);
+    if (esp_timer_create(&args, &timer) == ESP_OK) esp_timer_start_once(timer, (uint64_t)ms * 1000);
+}
+
+static void on_forget_wifi(void) {
+    settings_forget_networks();
+    restart_soon(500);  // setup opens at once: no network is saved
+}
+
+static void on_forget_network(const char *ssid) {
+    if (!net_forget_network(ssid)) ESP_LOGW(TAG, "no saved network by the name the bridge gave");
 }
 
 static const link_handlers_t LINK_HANDLERS = {
@@ -158,29 +168,52 @@ static const link_handlers_t LINK_HANDLERS = {
     .audio = player_write,
     .play_end = player_end,
     .stop = on_stop,
+    .wifi_setup = net_open_setup,
+    .forget_network = on_forget_network,
     .forget_wifi = on_forget_wifi,
 };
 
-// ---- Wi-Fi ----
+// ---- Wi-Fi (these run on the Wi-Fi task) ----
 
-static void on_net(net_state_t state) {
-    lvgl_port_lock(0);
-    in_setup = state == NET_SETUP;
-    on_wifi = state == NET_ONLINE;
-    if (in_setup) {
-        face_show_setup(net_setup_ssid(), net_setup_password());
-    } else {
-        face_hide_setup();
+static void start_link(void) {
+    if (link_started) return;
+    if (settings.bridge_url[0] == '\0') {
+        ESP_LOGW(TAG, "no bridge address saved yet: the setup page asks for it");
+        return;
     }
+    link_started = link_start(settings.bridge_url, net_device_id(), firmware, settings.device_key, &LINK_HANDLERS) == ESP_OK;
+}
+
+static void on_net(const net_status_t *status) {
+    lvgl_port_lock(0);
+    if (status->setup_open && !in_setup) face_show_setup(net_setup_ssid(), net_setup_password());
+    if (!status->setup_open && in_setup) face_hide_setup();
+    in_setup = status->setup_open;
+    on_wifi = status->online;
     refresh_face();
     lvgl_port_unlock();
-    if (state == NET_ONLINE) {
-        if (settings.bridge_url[0] == '\0') {
-            ESP_LOGE(TAG, "no bridge address saved; forget the Wi-Fi to run setup again");
-            return;
-        }
-        link_start(settings.bridge_url, net_device_id(), firmware, settings.device_key, &LINK_HANDLERS);
+    if (status->online) start_link();
+}
+
+static void on_wifi_changed(void) {
+    link_wifi_t report;
+    net_report(&report);
+    link_set_wifi(&report);
+}
+
+// The setup page saved a different bridge address, and removed the old bridge's key.
+static void on_bridge_changed(void) {
+    if (link_started) {
+        ESP_LOGI(TAG, "new bridge address: restarting to connect to it");
+        restart_soon(1500);
+        return;
     }
+    settings_t fresh;
+    settings_load(&fresh);
+    memcpy(settings.bridge_url, fresh.bridge_url, sizeof(settings.bridge_url));
+    memcpy(settings.device_key, fresh.device_key, sizeof(settings.device_key));
+    memset(&fresh, 0, sizeof(fresh));
+    if (on_wifi) start_link();
 }
 
 // ---- touch ----
@@ -300,7 +333,12 @@ void app_main(void) {
     static const listen_handlers_t LISTEN_HANDLERS = {.started = on_listen_started, .finished = on_listen_finished};
     ESP_ERROR_CHECK(listen_init(&LISTEN_HANDLERS));
 
-    ESP_ERROR_CHECK(net_start(&settings, on_net));
+    static const net_handlers_t NET_HANDLERS = {
+        .status = on_net,
+        .wifi_changed = on_wifi_changed,
+        .bridge_changed = on_bridge_changed,
+    };
+    ESP_ERROR_CHECK(net_start(settings.bridge_url[0] != '\0', &NET_HANDLERS));
     ESP_LOGI(TAG, "device %s", net_device_id());
 
     for (;;) {
