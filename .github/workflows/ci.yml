@@ -1,5 +1,5 @@
 # Checks on every pull request to main and every push to main. Each job is its own check, so a branch
-# ruleset can require them by name: bridge, docker, firmware. Keep the job names stable.
+# ruleset can require them by name: bridge, docker, firmware, installer. Keep the job names stable.
 #
 # Every action is pinned to a full commit SHA from a release at least 7 days old (the same rule as the
 # bridge's packages), and only GitHub's, pnpm's and Espressif's are used. Runs for pull requests get a
@@ -83,3 +83,53 @@ jobs:
         run: |
           . "$IDF_PATH/export.sh" > /dev/null
           idf.py build
+      - name: The C library's licence, for the licence notices
+        # Kept out of the repository: it names its copyright holders, file by file.
+        run: cp "$IDF_PATH/components/esp_libc/COPYING.picolibc" build/
+      - name: Keep the files idf.py flash writes, for the installer check
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: firmware-build
+          path: |
+            firmware/build/flash_args
+            firmware/build/*.bin
+            firmware/build/bootloader/bootloader.bin
+            firmware/build/partition_table/partition-table.bin
+            firmware/build/COPYING.picolibc
+          if-no-files-found: error
+          retention-days: 3
+
+  installer:
+    name: installer
+    # The tests, then the packaging script on this run's firmware build, exactly as a release runs it:
+    # a change that would break a release (or write over NVS) fails here first.
+    needs: firmware
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: pnpm version from package.json
+        id: pnpm
+        run: |
+          echo "version=$(jq -r '.devEngines.packageManager.version | sub("^[~^]"; "")' package.json)" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: ${{ steps.pnpm.outputs.version }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: installer/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: firmware-build
+          path: ${{ runner.temp }}/firmware-build
+      - name: Package this run's firmware build
+        run: node scripts/package.mjs --build "$RUNNER_TEMP/firmware-build" --out dist
