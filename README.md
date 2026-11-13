@@ -33,6 +33,7 @@ design: [docs/spec.md](docs/spec.md).
 |---|---|
 | [Bridge](bridge/) (TypeScript server + admin page) | working, with tests and a fake device / fake Grok Bot |
 | [Firmware](firmware/) (ESP-IDF, Waveshare ESP32-S3-Touch-LCD-1.46) | working: Wi-Fi setup from a phone with up to 5 saved networks (for travelling), approval, avatar and states, spoken replies, hold to talk |
+| [Installer](installer/) (web page on GitHub Pages) and [releases](https://github.com/e-roy/grok-puck/releases) | built: installs the firmware from the browser, keeping the device's settings; first release to come |
 | Grok Bot setup | working: MCP server, standing instructions and voice routine. Some checks still to run: [docs/grok-bot-setup.md](docs/grok-bot-setup.md) |
 | [Case and stand](hardware/) (3D prints) | slim case and stand designed; an earlier larger case printed and fitting |
 
@@ -43,7 +44,9 @@ design: [docs/spec.md](docs/spec.md).
 1. the parts, and printing the case and stand;
 2. the bridge on an always-on machine with Docker, behind a Cloudflare Tunnel;
 3. the speech services and your bot, in the bridge's admin page;
-4. the device: flashing it, its Wi-Fi from your phone, approving it;
+4. the device: installing its firmware from the browser with the
+   [web installer](https://e-roy.github.io/grok-puck/) (Chrome, Edge or Firefox on a computer, no
+   ESP-IDF needed), its Wi-Fi from your phone, approving it;
 5. connecting Grok Bot;
 6. talking to it.
 
@@ -64,9 +67,10 @@ Full BOM, print settings and the OpenSCAD sources: [hardware/](hardware/).
 Contributions are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md). In short:
 - enable the privacy check once per clone (`git config core.hooksPath .githooks`);
 - behaviour changes start in the spec;
-- every pull request must pass three checks: bridge, docker and firmware.
+- every pull request must pass four checks: bridge, docker, firmware and installer.
 
 ## Licence
 
 MIT ([LICENSE](LICENSE)), for the code, the docs and the 3D files. Third-party code:
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), with the notices for the published firmware and the
+installer page.

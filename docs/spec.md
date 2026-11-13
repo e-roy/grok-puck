@@ -1,9 +1,11 @@
 # Spec: Grok Bot desk display
 
-**Status: v0.1 (24 Oct 2026) is mostly built; the README says what works.** New, for approval
-(12 Nov 2026): **xAI as a speech service** (§5.6.1) and the **Listen page** for hearing the bot on a
-computer (§5.10). Items marked *(proposal)* are suggestions you can change; items marked *(to test)*
-depend on how Grok Bot actually behaves, and get checked at milestone M2.
+**Status: v0.1 (24 Oct 2026) is mostly built; §8 shows each milestone's status, and the README says
+what works.** Agreed on 12 Nov 2026 and not built yet: **xAI as a speech service** (§5.6.1) and the
+**Listen page** for hearing the bot on a computer (§5.10). New (13 Nov 2026): **firmware releases and
+the web installer** (§4.7, milestone M9), built, with the first release still to come. Items marked
+*(proposal)* are suggestions you can change; items marked *(to test)* depend on how Grok Bot actually
+behaves, and get checked at milestone M2.
 
 This document is written to be public: it has no personal details, hostnames or keys. Real values live
 in `.env` files and in the bridge's admin page, both of which stay out of git.
@@ -35,7 +37,7 @@ into text and back. xAI's speech API can be one of them (§5.6.1); no other xAI 
 - Hardware: BOM, case and stand (STL + OpenSCAD source).
 
 **Not in v1**
-- Firmware updates over Wi-Fi (USB flashing only at first).
+- Firmware updates over Wi-Fi: updates go over USB, from the web installer (§4.7).
 - A wake word, a battery, or text captions on the screen.
 - Reading the Grok Bot app's chats or status directly: there is no documented way to do that.
 
@@ -223,11 +225,42 @@ their networks: their card has no Wi-Fi part, only Forget all networks.
 
 No button or gesture on the device is used (holding BOOT while plugging in is download mode).
 
-### 4.7 Flashing
-- USB flashing from Windows or macOS, with scripts that run on both.
+### 4.7 Installing the firmware: releases and the web installer
+
+People install the firmware from a web page, without ESP-IDF; developers build and flash it with
+ESP-IDF as before.
+
+- **Releases are built by GitHub Actions only**, in the same pinned Espressif container as the CI
+  firmware check; a build from someone's computer is never published. A maintainer starts the
+  "Release firmware" workflow (`.github/workflows/release.yml`) by hand, and only from `main`. It takes
+  the version from `PROJECT_VER` (`firmware/CMakeLists.txt`), refuses one that already has a release
+  or a tag, builds, creates the GitHub Release `v<version>` on the commit it built (the four firmware
+  parts, the installer's manifest and the licence notices), then deploys the installer page to GitHub
+  Pages. Running from `main` keeps the `github-pages` environment's default rule (deploys from `main`
+  only). How to make one: CONTRIBUTING.md.
+- **The installer page** (`installer/`, on GitHub Pages) uses ESP Web Tools: one **Install** button,
+  through Web Serial, in Chrome, Edge or Firefox (151 or newer) on a computer. The board's USB is its
+  native USB Serial/JTAG, so no driver is needed. Install is offered only where it works (Web Serial,
+  on a secure page); elsewhere the page says which browser to use. ESP Web Tools is installed with
+  pnpm and served from the page's own site, never from a CDN: a page that writes firmware to people's
+  boards runs no code from another server, and its Content-Security-Policy allows only its own site.
+- **An install keeps the device's settings.** The manifest lists the four parts separately, at the
+  build's own offsets (bootloader 0x0, partition table 0x8000, OTA boot data 0xf000, app 0x20000), never
+  one merged image: NVS (0x9000-0xf000: the Wi-Fi networks, bridge address and device key) is never
+  written. The packaging script (`installer/scripts/package.mjs`) refuses a build in which a part would
+  reach into any partition but its own. After the install the board restarts by itself and reconnects.
+- **Erase device**, offered by the installer before it writes, erases the whole flash first: a clean
+  start, for the first install over Waveshare's demo firmware or to set a device up again. It replaces
+  `idf.py erase-flash flash` for people without ESP-IDF.
+- The firmware doesn't use Improv Wi-Fi (its Wi-Fi is set up from a phone, §4.6), so the installer
+  doesn't wait for it after an install.
+- **Licence notices** ship with every release and on the page: what the firmware contains
+  (`firmware/NOTICES.md`, worked out from the build's link map) and what the page serves
+  (`installer/NOTICES.md`).
+- **Developers** build and flash with ESP-IDF (`firmware/README.md`), in a folder outside any
+  cloud-synced directory: a build makes thousands of files.
 - No backup of the factory firmware is made. The way back to it is Waveshare's demo image
   (`Firmware/ESP32-S3-Touch-LCD-1.46.bin` in their examples repo).
-- ESP-IDF builds go to a folder outside any cloud-synced directory: a build makes thousands of files.
 
 ---
 
@@ -336,7 +369,7 @@ its list.
   During a voice chat, mute the device so it doesn't talk over the call. *(to test)* whether the bot
   calls the desk tools during a voice chat.
 
-#### 5.6.1 xAI as a speech service *(proposal, not built)*
+#### 5.6.1 xAI as a speech service *(agreed 12 Nov 2026, not built)*
 
 xAI's developer API has text to speech and speech to text, with voices from the same family as Grok's
 own apps. It is a **separate account and bill** from the Grok Bot plan: a key from xAI's developer
@@ -392,7 +425,7 @@ item links to where it is fixed; when all are done it shrinks to "Ready".
 approved device a card with:
 - the bot's avatar showing what the device shows (idle, thinking…), online or last seen, firmware;
 - name (edited in place), bot, volume (slider), mute (switch), longest message;
-- **Speak on** *(proposal, §5.10)*: the device, the Listen page or both, and whether a Listen page is
+- **Speak on** *(not built yet, §5.10)*: the device, the Listen page or both, and whether a Listen page is
   ready for it, with a link to open one;
 - **Try it:** a sentence to speak, with the last few used; showing a state is in a small Test menu;
 - **Wi-Fi:** its saved networks, Forget for each, and Wi-Fi setup (§4.6);
@@ -439,7 +472,7 @@ New endpoints come only with new features, like Wi-Fi setup and Forget for one n
 - Transcripts and bot text are treated as data, never as commands to the bridge.
 - `.env`, the data volume, backups and `private/` are git-ignored from the first commit.
 
-### 5.10 The Listen page: hearing the bot on a computer *(proposal, not built)*
+### 5.10 The Listen page: hearing the bot on a computer *(agreed 12 Nov 2026, not built)*
 
 For when the bot should be heard through a computer, with headphones or better speakers, rather than
 from the device. The Grok Bot app's documentation describes no reading aloud of typed replies, so this
@@ -499,41 +532,50 @@ measurements (context, reliability, timing) are still to be taken.
 
 ## 7. Repository
 
-- **Local first.** No git repository until the code is mature: everything is built and tested as
-  local files, at least through the first connection to Grok Bot (M2).
-- **Before the repo is created**, personal notes, research about other projects and the screenshots
-  move to `private/`. That folder is git-ignored from the first commit, so none of it ever enters the
-  history. The licence notices for code we derive from other projects stay public, because MIT
-  requires them.
+- **Public on GitHub** (github.com/e-roy/grok-puck) since 9 November 2026, **MIT** for everything
+  (code, docs, 3D files). Code derived from other projects keeps its licence notice in
+  `THIRD_PARTY_NOTICES.md`; what the releases and the installer page contain has its own notices
+  (`firmware/NOTICES.md`, `installer/NOTICES.md`).
+- **Personal notes, research and screenshots** live in `private/` and `CLAUDE.local.md`, both
+  git-ignored, so none of it enters the history.
 - **Nothing personal, ever, in the repo or its history:** no names, emails, domains or hostnames, home
   network addresses, Wi-Fi names, device IDs or MAC addresses, local paths, logs or screenshots of real
-  setups. Checked automatically: a script scans every commit for the patterns in a git-ignored list
+  setups. A script (`scripts/check-private.mjs`) looks for the patterns in a git-ignored list
   (`private/denylist.txt`: the owner's name, email, domain, home address range, network names, device
-  IDs) and for anything that looks like a key or token, and refuses the commit if it finds one. It runs
-  as a git pre-commit hook from the first commit, so the history starts clean.
-- **MIT** for everything (code, docs, 3D files).
+  IDs) and for anything that looks like a key or token. It runs locally, in two git hooks: pre-commit
+  checks the files being committed, pre-push checks each pushed commit (message, names and emails, and
+  every line it adds). It doesn't run in CI: whatever reaches a pushed commit is already published.
+- **Pull requests run CI** (`.github/workflows/ci.yml`), four checks that main's ruleset requires:
+  **bridge** (type check, tests, admin page build), **docker** (the bridge image builds), **firmware**
+  (the ESP-IDF build) and **installer** (its tests, then packaging that firmware build as a release
+  would). Releases: §4.7.
+- **Supply chain:** pnpm only, packages at least 7 days old and no install scripts; firmware
+  components pinned to exact versions; GitHub Actions pinned to full commit SHAs of releases at least 7
+  days old, from GitHub, pnpm and Espressif only.
 - Layout: `firmware/`, `bridge/` (server, admin page, a fake device and a fake Grok Bot for tests),
-  `hardware/` (BOM, STL, OpenSCAD `.scad` sources), `docs/`.
+  `installer/` (the web installer page and the script that packages a firmware build),
+  `hardware/` (BOM, STL, OpenSCAD `.scad` sources), `docs/`, `scripts/` (the privacy check).
 - Placeholders only (`desk.example.com`).
 
 ---
 
 ## 8. Build order
 
-| | Milestone | Done when |
-|---|---|---|
-| M1 | Bridge core running locally with a **fake device** (a script that talks the device protocol), a **fake Grok Bot** (receives the webhook, answers through MCP) and a first admin page | fake device: approve, say hello via TTS, voice message via STT → webhook → reply played |
-| M2 | Bridge deployed on the always-on host with tunnel and Access; **first connection to Grok Bot** (MCP, skill, routine) | typed chat → status and speech reach the fake device; voice message acts like typed; timings logged; spec updated with what we learn |
-| M3 | Firmware: display, touch and face on the board, offline; audio in/out check | avatar animates through all states from a test menu; tap and hold work; mic level and a tone work |
-| M4 | Device ⇄ bridge: setup hotspot, approval, config, states, playback | the bot's replies are spoken on the real device |
-| M5 | Listening: hold-to-talk, voice level, STT, full voice turn | hold, speak, let go, the bot acts, the reply is spoken |
-| M6 | Polish: avatar shapes matched to the app, dimming, mute, errors, docs for the public release | ready to make public |
-| R | When the code is mature: move personal and research files to `private/`, clean up `CLAUDE.md` and the docs, create the repo | first commit contains nothing personal |
-| M7 | *(proposal)* Listen page (§5.10) | with Speak on set to the Listen page, a typed chat reply plays in the browser tab while the device shows "speaking"; a tap on the device stops it; with no page ready, the device speaks |
-| M8 | *(proposal)* xAI as a speech service (§5.6.1) | the device speaks with an xAI voice, a voice message is transcribed by xAI, and the tests pass against a fake xAI server |
+| | Milestone | Done when | Status |
+|---|---|---|---|
+| M1 | Bridge core running locally with a **fake device** (a script that talks the device protocol), a **fake Grok Bot** (receives the webhook, answers through MCP) and a first admin page | fake device: approve, say hello via TTS, voice message via STT → webhook → reply played | done |
+| M2 | Bridge deployed on the always-on host with tunnel and Access; **first connection to Grok Bot** (MCP, skill, routine) | typed chat → status and speech reach the fake device; voice message acts like typed; timings logged; spec updated with what we learn | the connection works: the MCP server, the standing instructions (saved in the bot's memory) and the voice routine; typed and spoken turns reach the desk. The measurements in `docs/grok-bot-setup.md` are not run yet |
+| M3 | Firmware: display, touch and face on the board, offline; audio in/out check | avatar animates through all states from a test menu; tap and hold work; mic level and a tone work | done |
+| M4 | Device ⇄ bridge: setup hotspot, approval, config, states, playback | the bot's replies are spoken on the real device | done |
+| M5 | Listening: hold-to-talk, voice level, STT, full voice turn | hold, speak, let go, the bot acts, the reply is spoken | done |
+| M6 | Polish: avatar shapes matched to the app, dimming, mute, errors, docs for the public release | ready to make public | partly: the docs for the public release are done and the repo is public; errors are done (a failed step or no answer shows the error face and plays a tone); mute works in the bridge (no speech or tones reach a muted device), but the face has no "muted" mark yet. Screen dimming and matching the avatar shapes to the app are still open |
+| R | When the code is mature: move personal and research files to `private/`, clean up `CLAUDE.md` and the docs, create the repo | first commit contains nothing personal | done (9 Nov 2026) |
+| M7 | Listen page (§5.10) | with Speak on set to the Listen page, a typed chat reply plays in the browser tab while the device shows "speaking"; a tap on the device stops it; with no page ready, the device speaks | planned, not built |
+| M8 | xAI as a speech service (§5.6.1) | the device speaks with an xAI voice, a voice message is transcribed by xAI, and the tests pass against a fake xAI server | planned, not built |
+| M9 | Firmware releases and the web installer (§4.7) | "Release firmware" publishes `v<version>` with the four parts, the manifest and the notices; the installer page on GitHub Pages installs it from the browser and the device keeps its settings; **Erase device** gives a clean start | built and tested on a board from a local package; the first release (v0.6.0) is still to come |
 
-M1 and M2 come first so that any surprise on the Grok Bot side shows up before the firmware is far
-along. M3 can run in parallel. M7 and M8 don't depend on each other, so either can come first.
+M1 and M2 came first so that any surprise on the Grok Bot side showed up before the firmware was far
+along. M7, M8 and M9 don't depend on each other, so any can come first.
 
 ## 9. Risks and open points
 
@@ -550,3 +592,6 @@ along. M3 can run in parallel. M7 and M8 don't depend on each other, so either c
 | xAI's TTS docs show two answer formats (JSON with base64 audio, and a plain audio body) | accept both; check with a real key in M8 |
 | xAI speech is billed per use, outside the Grok Bot plan | opt-in; the prices are stated in the admin page's Speech card and here |
 | Browsers block sound until the page is clicked; phones may pause a page | the Listen page counts as ready only after a click; otherwise the device speaks |
+| An install could wipe the device's settings | the installer writes the four parts separately and never NVS; the packaging script refuses any build that would reach into another partition, in every pull request and every release |
+| Not every browser can install (Web Serial) | the installer offers Install only where it works and says which browser to use otherwise; tested in Chrome (Edge shares its engine); Firefox 151+ is not tested yet |
+| A published release built from the wrong files | releases are built only by the release workflow, from `main`, in the pinned ESP-IDF container; a version is never released twice |

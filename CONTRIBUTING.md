@@ -82,10 +82,44 @@ ESP32-S3-Touch-LCD-1.46.
 - Build and flash as in [firmware/README.md](firmware/README.md). On Windows, keep the repository in a
   short path: deep build folders break the 260-character path limit.
 - Raise `PROJECT_VER` in `firmware/CMakeLists.txt` when the firmware's behaviour changes. The admin
-  page shows each device's version.
+  page shows each device's version, and a release is named after it.
 - Test on a real board, and say in the pull request what you tried on it.
 - `sdkconfig` is generated and git-ignored: settings that should apply to everyone go in
   `sdkconfig.defaults`.
+- A change to ESP-IDF, a component (`dependencies.lock`) or what is built in can change what the
+  published firmware contains: check [firmware/NOTICES.md](firmware/NOTICES.md) again. The installer's
+  tests fail when it doesn't name the ESP-IDF version or a component's version.
+
+## The installer page
+
+The page that installs the firmware from the browser, and the script that packages a build for it and
+for a release, in [installer/](installer/) ([installer/README.md](installer/README.md)). The same pnpm
+rules as the bridge apply; ESP Web Tools is served from the page's own site, never from a CDN.
+
+```sh
+cd installer
+pnpm install
+pnpm test                                    # the packaging script, the page build, the notices
+pnpm package --build ../firmware/build       # package your firmware build into installer/dist
+pnpm serve                                   # try the page on http://127.0.0.1:8790
+```
+
+`pnpm package` runs in the ESP-IDF terminal: it takes the C library's licence file from ESP-IDF.
+
+## Making a release
+
+Releases are built by GitHub Actions, never on someone's computer:
+
+1. In a pull request, raise `PROJECT_VER` in `firmware/CMakeLists.txt` (for example `0.7.0`), and
+   merge it.
+2. On GitHub: **Actions** → **Release firmware** → **Run workflow**, on `main`.
+
+The workflow ([.github/workflows/release.yml](.github/workflows/release.yml)) refuses a version that
+already has a release or a tag. It builds the firmware, packages it, creates the release `v<version>`
+on the commit it built (the four firmware parts, the installer's manifest and the licence notices,
+with release notes), then deploys the installer page to GitHub Pages. If it fails after creating a
+draft release, delete the draft before running it again; if only the page's deployment fails,
+re-run the failed job.
 
 ## The case and stand (OpenSCAD)
 
@@ -98,10 +132,11 @@ files together. Say what you printed and how it fit.
 
 1. Branch from `main`. Pull requests go to `main`.
 2. Run the checks that apply locally (`pnpm test`, `pnpm check`, `idf.py build`).
-3. Every pull request runs three checks ([.github/workflows/ci.yml](.github/workflows/ci.yml)):
-   **bridge** (type check, tests, admin page build), **docker** (the bridge image builds) and
-   **firmware** (the ESP-IDF build). All three must pass before merging. The privacy check runs only
-   on your computer: whatever reaches a pushed commit has already been published.
+3. Every pull request runs four checks ([.github/workflows/ci.yml](.github/workflows/ci.yml)):
+   **bridge** (type check, tests, admin page build), **docker** (the bridge image builds),
+   **firmware** (the ESP-IDF build) and **installer** (its tests, then packaging that firmware build as
+   a release would). All four must pass before merging. The privacy check runs only on your
+   computer: whatever reaches a pushed commit has already been published.
 4. In the description, say what changed, how you tested it (with the results), and what still needs
    testing on hardware or with a phone.
 5. A maintainer reviews and merges.
@@ -121,4 +156,5 @@ repository's Security tab.
 ## Licence
 
 Everything here is under the [MIT licence](LICENSE), and so are your contributions. Code taken from
-other projects keeps its notice in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+other projects keeps its notice in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), which also points
+to the notices for what the releases and the installer page contain.
