@@ -1,0 +1,318 @@
+---
+lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    configDependencies: {}
+    packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 11.2.2
+        version: 11.2.2
+      pnpm:
+        specifier: 11.2.2
+        version: 11.2.2
+
+packages:
+
+  '@pnpm/exe@11.2.2':
+    resolution: {integrity: sha512-9AGho6f10GYF/XHvnpO6wnzDIAiHNSs2PyOTelrNNyUiHwfTVtnJoXwRz/6yPJAYOF3erhPauv5oxf62uh581w==}
+    hasBin: true
+
+  '@pnpm/linux-arm64@11.2.2':
+    resolution: {integrity: sha512-cMEqyEwpghHb1UggKuowTuGKvbWe1Ra6bK3SF9CWoIrz36mzQz3FXxYXx1Theo8lmkwWH2MZdUGHKgtUoqEGKg==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@pnpm/linux-x64@11.2.2':
+    resolution: {integrity: sha512-AShxDdan9wfAFbIGAO5YnbGRf3zuETOZVMuWqmx4mJLaAOR3kiA3Rwhzj3jyTsAoodn7Xdaxq9G1M3FpB92mkQ==}
+    cpu: [x64]
+    os: [linux]
+
+  '@pnpm/linuxstatic-arm64@11.2.2':
+    resolution: {integrity: sha512-m7BCdqFdMFo3fkiOpcOLa70c3Ppy5OKv78HXSIfzL4ajHBdPQfmv03VgC3U08l1ST/EeQFuSt+Za0azmOJyYqA==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/linuxstatic-x64@11.2.2':
+    resolution: {integrity: sha512-UABTQUhdn6eCx/IlGVrdwklKT00pTHrjLNXdviP4OReJa1trM5HDWcDnreIg89ghCFmee+UTBKDx1FYlLON8EQ==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@pnpm/macos-arm64@11.2.2':
+    resolution: {integrity: sha512-EakwHSWIxzza6fO6zQkmkUphoadjer9VXCsWRax1D4qNWmChKfn2muYFj6BOChS999lwb4fb42gc61Nbx0X6iw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@pnpm/win-arm64@11.2.2':
+    resolution: {integrity: sha512-eXzlXAnwRAI9Uff1U2pfTJxC78vL8aGxU/fsUt/RzWjS09xMQZ2qtAunKg869fAi6xfsquDbogkdTZA3163lIw==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@pnpm/win-x64@11.2.2':
+    resolution: {integrity: sha512-X74bQ4bvjSCYapcupRsGrse8cAg7XhPKXRn1o1qOouux1nJquz9lh2h5uKz8GPx816OUsYo9FS8DV3N9W+L8QA==}
+    cpu: [x64]
+    os: [win32]
+
+  '@reflink/reflink-darwin-arm64@0.1.19':
+    resolution: {integrity: sha512-ruy44Lpepdk1FqDz38vExBY/PVUsjxZA+chd9wozjUH9JjuDT/HEaQYA6wYN9mf041l0yLVar6BCZuWABJvHSA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@reflink/reflink-darwin-x64@0.1.19':
+    resolution: {integrity: sha512-By85MSWrMZa+c26TcnAy8SDk0sTUkYlNnwknSchkhHpGXOtjNDUOxJE9oByBnGbeuIE1PiQsxDG3Ud+IVV9yuA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@reflink/reflink-linux-arm64-gnu@0.1.19':
+    resolution: {integrity: sha512-7P+er8+rP9iNeN+bfmccM4hTAaLP6PQJPKWSA4iSk2bNvo6KU6RyPgYeHxXmzNKzPVRcypZQTpFgstHam6maVg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@reflink/reflink-linux-arm64-musl@0.1.19':
+    resolution: {integrity: sha512-37iO/Dp6m5DDaC2sf3zPtx/hl9FV3Xze4xoYidrxxS9bgP3S8ALroxRK6xBG/1TtfXKTvolvp+IjrUU6ujIGmA==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@reflink/reflink-linux-x64-gnu@0.1.19':
+    resolution: {integrity: sha512-jbI8jvuYCaA3MVUdu8vLoLAFqC+iNMpiSuLbxlAgg7x3K5bsS8nOpTRnkLF7vISJ+rVR8W+7ThXlXlUQ93ulkw==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@reflink/reflink-linux-x64-musl@0.1.19':
+    resolution: {integrity: sha512-e9FBWDe+lv7QKAwtKOt6A2W/fyy/aEEfr0g6j/hWzvQcrzHCsz07BNQYlNOjTfeytrtLU7k449H1PI95jA4OjQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@reflink/reflink-win32-arm64-msvc@0.1.19':
+    resolution: {integrity: sha512-09PxnVIQcd+UOn4WAW73WU6PXL7DwGS6wPlkMhMg2zlHHG65F3vHepOw06HFCq+N42qkaNAc8AKIabWvtk6cIQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@reflink/reflink-win32-x64-msvc@0.1.19':
+    resolution: {integrity: sha512-E//yT4ni2SyhwP8JRjVGWr3cbnhWDiPLgnQ66qqaanjjnMiu3O/2tjCPQXlcGc/DEYofpDc9fvhv6tALQsMV9w==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@reflink/reflink@0.1.19':
+    resolution: {integrity: sha512-DmCG8GzysnCZ15bres3N5AHCmwBwYgp0As6xjhQ47rAUTUXxJiK+lLUxaGsX3hd/30qUpVElh05PbGuxRPgJwA==}
+    engines: {node: '>= 10'}
+
+  detect-libc@2.1.2:
+    resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
+    engines: {node: '>=8'}
+
+  pnpm@11.2.2:
+    resolution: {integrity: sha512-NuZiH61QYXiTZFXnAke4gI707CV5ep9DepMoGgIEhOJgf2pGmiLpgph8PbuIZuMHFRSrEKShdJ4G7c0ewRhDbw==}
+    engines: {node: '>=22.13'}
+    hasBin: true
+
+snapshots:
+
+  '@pnpm/exe@11.2.2':
+    dependencies:
+      '@reflink/reflink': 0.1.19
+      detect-libc: 2.1.2
+    optionalDependencies:
+      '@pnpm/linux-arm64': 11.2.2
+      '@pnpm/linux-x64': 11.2.2
+      '@pnpm/linuxstatic-arm64': 11.2.2
+      '@pnpm/linuxstatic-x64': 11.2.2
+      '@pnpm/macos-arm64': 11.2.2
+      '@pnpm/win-arm64': 11.2.2
+      '@pnpm/win-x64': 11.2.2
+
+  '@pnpm/linux-arm64@11.2.2':
+    optional: true
+
+  '@pnpm/linux-x64@11.2.2':
+    optional: true
+
+  '@pnpm/linuxstatic-arm64@11.2.2':
+    optional: true
+
+  '@pnpm/linuxstatic-x64@11.2.2':
+    optional: true
+
+  '@pnpm/macos-arm64@11.2.2':
+    optional: true
+
+  '@pnpm/win-arm64@11.2.2':
+    optional: true
+
+  '@pnpm/win-x64@11.2.2':
+    optional: true
+
+  '@reflink/reflink-darwin-arm64@0.1.19':
+    optional: true
+
+  '@reflink/reflink-darwin-x64@0.1.19':
+    optional: true
+
+  '@reflink/reflink-linux-arm64-gnu@0.1.19':
+    optional: true
+
+  '@reflink/reflink-linux-arm64-musl@0.1.19':
+    optional: true
+
+  '@reflink/reflink-linux-x64-gnu@0.1.19':
+    optional: true
+
+  '@reflink/reflink-linux-x64-musl@0.1.19':
+    optional: true
+
+  '@reflink/reflink-win32-arm64-msvc@0.1.19':
+    optional: true
+
+  '@reflink/reflink-win32-x64-msvc@0.1.19':
+    optional: true
+
+  '@reflink/reflink@0.1.19':
+    optionalDependencies:
+      '@reflink/reflink-darwin-arm64': 0.1.19
+      '@reflink/reflink-darwin-x64': 0.1.19
+      '@reflink/reflink-linux-arm64-gnu': 0.1.19
+      '@reflink/reflink-linux-arm64-musl': 0.1.19
+      '@reflink/reflink-linux-x64-gnu': 0.1.19
+      '@reflink/reflink-linux-x64-musl': 0.1.19
+      '@reflink/reflink-win32-arm64-msvc': 0.1.19
+      '@reflink/reflink-win32-x64-msvc': 0.1.19
+
+  detect-libc@2.1.2: {}
+
+  pnpm@11.2.2: {}
+
+---
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      esp-web-tools:
+        specifier: ^10.4.0
+        version: 10.4.0
+
+packages:
+
+  '@lit-labs/ssr-dom-shim@1.6.0':
+    resolution: {integrity: sha512-VHb0ALPMTlgKjM6yIxxoQNnpKyUKLD04VzeQdsiXkMqkvYlAHxq9glGLmgbb889/1GsohSOAjvQYoiBppXFqrQ==}
+
+  '@lit/context@1.1.6':
+    resolution: {integrity: sha512-M26qDE6UkQbZA2mQ3RjJ3Gzd8TxP+/0obMgE5HfkfLhEEyYE3Bui4A5XHiGPjy0MUGAyxB3QgVuw2ciS0kHn6A==}
+
+  '@lit/reactive-element@2.1.2':
+    resolution: {integrity: sha512-pbCDiVMnne1lYUIaYNN5wrwQXDtHaYtg7YEFPeW+hws6U47WeFvISGUWekPGKWOP1ygrs0ef0o1VJMk1exos5A==}
+
+  '@material/web@2.5.0':
+    resolution: {integrity: sha512-x2Uovyq8E/Zc1xHXd9s1eBMXF5pMHVAt70pISKd0fL3Ajj4L6zQaQUY/awcfR2RDAMKXC7i4+vr0arv1YaOR/g==}
+
+  '@types/trusted-types@2.0.7':
+    resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
+
+  atob-lite@2.0.0:
+    resolution: {integrity: sha512-LEeSAWeh2Gfa2FtlQE1shxQ8zi5F9GHarrGKz08TMdODD5T4eH6BMsvtnhbWZ+XQn+Gb6om/917ucvRu7l7ukw==}
+
+  esp-web-tools@10.4.0:
+    resolution: {integrity: sha512-3pwkeFFm5Fj7UQo8SJNYK5RXrtNCpq6X9QoI6bMT4GBZWgrJqjn0YvM9ihG74BtMoSFYXfmDtkehuxe50PTMPQ==}
+
+  esptool-js@0.6.1:
+    resolution: {integrity: sha512-WNgQTfaEIgHyEiT56pI5v7Tq6Pzjc2XaibLxAtWY4v3zE2Ofk5ImkJY5foEUr0JrdkfHWf6rNizAewN4/kSpHw==}
+
+  improv-wifi-serial-sdk@2.8.0:
+    resolution: {integrity: sha512-3MCm9NAD6c4OXyXl+jPqu0kNasIZi80JVeDkPaOQEI4JpItCaOAyQGdL/yg5mOqlKJ0nn2K/xb8H7enbNPc/5g==}
+    deprecated: Moved to @improv-wifi/serial-sdk
+
+  lit-element@4.2.2:
+    resolution: {integrity: sha512-aFKhNToWxoyhkNDmWZwEva2SlQia+jfG0fjIWV//YeTaWrVnOxD89dPKfigCUspXFmjzOEUQpOkejH5Ly6sG0w==}
+
+  lit-html@3.3.3:
+    resolution: {integrity: sha512-el8M6jK2o3RXBnrSHX3ZKrsN8zEV63pSExTO1wYJz7QndGYZ8353e2a5PPX+qHe2aGayfnchQmkAojaWAREOIA==}
+
+  lit@3.3.3:
+    resolution: {integrity: sha512-fycuvZg/hkpozL00lm1pEJH5nN/lr9ZXd6mJI2HSN4+Bzc+LDNdEApJ6HFbPkdFNHLvOplIIuJvxkS4XUxqirw==}
+
+  pako@2.2.0:
+    resolution: {integrity: sha512-zJq6RP/5q+TO2OpFV3FHzlPnFjmkb7Nc99a5SNjJE+uu/PkpChs+NIZSSzbBoD+6kjiISXjfYdwj1ZRQ81dz/w==}
+
+  tslib@2.9.1:
+    resolution: {integrity: sha512-a4Ux9VKuIMHsOS7ENbEq6hK2ZGYIT27Rtl0E4eD9KqwxhKiQeMZE/9xb3IdYwWaSOyIBQLExhQgXDTYoiCxnWA==}
+
+snapshots:
+
+  '@lit-labs/ssr-dom-shim@1.6.0': {}
+
+  '@lit/context@1.1.6':
+    dependencies:
+      '@lit/reactive-element': 2.1.2
+
+  '@lit/reactive-element@2.1.2':
+    dependencies:
+      '@lit-labs/ssr-dom-shim': 1.6.0
+
+  '@material/web@2.5.0':
+    dependencies:
+      '@lit/context': 1.1.6
+      lit: 3.3.3
+      tslib: 2.9.1
+
+  '@types/trusted-types@2.0.7': {}
+
+  atob-lite@2.0.0: {}
+
+  esp-web-tools@10.4.0:
+    dependencies:
+      '@material/web': 2.5.0
+      esptool-js: 0.6.1
+      improv-wifi-serial-sdk: 2.8.0
+      lit: 3.3.3
+      tslib: 2.9.1
+
+  esptool-js@0.6.1:
+    dependencies:
+      atob-lite: 2.0.0
+      pako: 2.2.0
+      tslib: 2.9.1
+
+  improv-wifi-serial-sdk@2.8.0:
+    dependencies:
+      '@material/web': 2.5.0
+      tslib: 2.9.1
+
+  lit-element@4.2.2:
+    dependencies:
+      '@lit-labs/ssr-dom-shim': 1.6.0
+      '@lit/reactive-element': 2.1.2
+      lit-html: 3.3.3
+
+  lit-html@3.3.3:
+    dependencies:
+      '@types/trusted-types': 2.0.7
+
+  lit@3.3.3:
+    dependencies:
+      '@lit/reactive-element': 2.1.2
+      lit-element: 4.2.2
+      lit-html: 3.3.3
+
+  pako@2.2.0: {}
+
+  tslib@2.9.1: {}

@@ -1,0 +1,19 @@
+# pnpm settings for the installer page. This package installs with pnpm only: package.json's
+# devEngines makes npm refuse to install before it downloads anything, so these settings always apply.
+# The same supply-chain settings as bridge/pnpm-workspace.yaml.
+
+# Supply-chain protection: never install a version published less than 7 days ago (minutes), and
+# fail instead of quietly falling back to a newer version.
+minimumReleaseAge: 10080
+minimumReleaseAgeStrict: true
+# Fail when the registry gives no publish time, rather than installing an unknown-age version.
+minimumReleaseAgeIgnoreMissingTime: false
+
+# Refuse a version whose publisher trust evidence is weaker than an earlier version's
+# (for example a release that lost its provenance attestation).
+trustPolicy: no-downgrade
+
+# pnpm's defaults, written out so they stay on: dependencies may not run install scripts unless
+# listed under allowBuilds, and only direct dependencies may come from git or tarball URLs.
+strictDepBuilds: true
+blockExoticSubdeps: true

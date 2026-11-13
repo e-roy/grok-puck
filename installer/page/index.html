@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Everything comes from this site: the page, ESP Web Tools and the firmware. No other server. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Install the Grok Puck desk display firmware on a Waveshare ESP32-S3-Touch-LCD-1.46 from Chrome, Edge or Firefox, without installing anything.">
+  <title>Install Grok Puck</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <noscript><link rel="stylesheet" href="noscript.css"></noscript>
+  <script type="module" src="esp-web-tools/install-button.js"></script>
+</head>
+<body>
+  <header class="top">
+    <svg class="logo" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+      <circle cx="32" cy="32" r="30" class="logo-body"/>
+      <ellipse cx="23" cy="30" rx="5" ry="7" class="logo-eye"/>
+      <ellipse cx="41" cy="30" rx="5" ry="7" class="logo-eye"/>
+    </svg>
+    <span class="name">Grok Puck</span>
+  </header>
+
+  <main>
+    <h1>Install the Grok Puck firmware</h1>
+    <p class="lead">Put the desk display's firmware on a Waveshare ESP32-S3-Touch-LCD-1.46 from this
+      page, with nothing to install on your computer.</p>
+
+    <section aria-labelledby="need">
+      <h2 id="need">What you need</h2>
+      <ul>
+        <li><strong>Chrome, Edge or Firefox (151 or newer) on a computer</strong> (Windows, macOS or
+          Linux): installing uses Web Serial, which they have. Firefox first asks you to allow it for
+          this site. The page offers Install only in a browser that can do it.</li>
+        <li>The board, and a <strong>USB-C cable that carries data</strong>: some cables only charge.
+          The board needs no driver.</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="install" class="install">
+      <h2 id="install">Install</h2>
+      <!-- The steps and the button show only once ESP Web Tools has found Web Serial on a secure page
+           (it marks the element install-supported); otherwise its message for that browser shows. -->
+      <ol class="steps">
+        <li>Plug the board into the computer. Close anything else that uses its port, such as
+          <code>idf.py monitor</code>.</li>
+        <li>Press <strong>Install</strong> and choose the board's port (on Windows it is called
+          "USB JTAG/serial debug unit").</li>
+        <li>Choose <strong>Install Grok Puck</strong>. Leave <strong>Erase device</strong> unticked
+          to keep the device's settings, press <strong>Next</strong>, then <strong>Install</strong>.
+          It takes about two minutes: keep this tab in front meanwhile.</li>
+      </ol>
+      <esp-web-install-button manifest="firmware/manifest.json">
+        <p class="checking">Checking whether this browser can install…</p>
+        <button slot="activate" type="button" class="button">Install Grok Puck {{VERSION}}</button>
+        <div slot="unsupported" class="notice">
+          <p><strong>This browser can't install firmware.</strong> Installing needs Web Serial, which
+            this browser doesn't have. Open this page in Chrome, Edge or Firefox (151 or newer) on a
+            computer.</p>
+        </div>
+        <div slot="not-allowed" class="notice">
+          <p><strong>This page isn't on a secure (HTTPS) address.</strong> Browsers let a page reach a
+            USB device only over HTTPS, or from the computer itself (localhost). Open this page from
+            its <code>https://</code> address.</p>
+        </div>
+      </esp-web-install-button>
+      <noscript>
+        <div class="notice"><p><strong>The installer needs JavaScript.</strong> Turn it on for this
+          page, then reload it.</p></div>
+      </noscript>
+    </section>
+
+    <section aria-labelledby="next">
+      <h2 id="next">What happens next</h2>
+      <ul>
+        <li><strong>A new or erased device</strong> shows a QR code for its setup network,
+          <code>Desk-Setup-XXXX</code>. Join it with your phone and continue at
+          <a href="{{SETUP_URL}}">step 4 of the setup guide</a>: add your Wi-Fi and the bridge
+          address, then approve the device in the bridge's admin page. If the setup page doesn't open
+          by itself on the phone, open <code>http://192.168.4.1</code> in the phone's browser.</li>
+        <li><strong>A device that was already set up</strong> restarts with the new firmware and
+          reconnects by itself. Its card in the admin page shows the new version.</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="settings">
+      <h2 id="settings">Keep or erase the settings</h2>
+      <p>An install keeps what the device has saved: its Wi-Fi networks, the bridge address and its
+        key. <strong>Erase device</strong> clears all of it for a clean start: for the first install
+        over Waveshare's demo firmware, or to set a device up again from scratch. An erased device then
+        needs its Wi-Fi from your phone and approving again in the admin page.</p>
+    </section>
+
+    <section aria-labelledby="trouble">
+      <h2 id="trouble">If it doesn't work</h2>
+      <dl class="trouble">
+        <dt>The installer can't connect, or no port shows up</dt>
+        <dd>Hold the board's <strong>BOOT</strong> button while you plug it in, then press Install
+          again. After the install, unplug it and plug it in again to start the new firmware.</dd>
+        <dt>"Failed to open serial port", or the port is busy</dt>
+        <dd>Close anything else using the port, such as <code>idf.py monitor</code>, a serial
+          terminal, or another tab with this page.</dd>
+        <dt>Still nothing</dt>
+        <dd>Try another cable (some only charge) or another USB port.</dd>
+        <dt>The screen stays dark after the install</dt>
+        <dd>Unplug the board and plug it in again.</dd>
+      </dl>
+    </section>
+  </main>
+
+  <footer>
+    <p>Firmware {{VERSION}} ·
+      <a href="{{RELEASE_URL}}">Release notes</a> ·
+      <a href="{{SOURCE_URL}}">Source</a> ·
+      <a href="notices.txt">Licences</a></p>
+    <p>An unofficial hobby project, not affiliated with or endorsed by xAI. The installer is
+      ESP Web Tools {{ESP_WEB_TOOLS_VERSION}}, served from this site.</p>
+  </footer>
+</body>
+</html>

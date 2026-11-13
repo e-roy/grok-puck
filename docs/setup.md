@@ -9,7 +9,7 @@ you go on. If something doesn't, see [Troubleshooting](#troubleshooting).
 | [1. Parts and case](#1-get-the-parts-and-print-the-case) | buy the board and a cable, print the case and stand | your desk, a 3D printer |
 | [2. The bridge](#2-run-the-bridge) | run the bridge in Docker behind a Cloudflare Tunnel | your always-on machine, Cloudflare |
 | [3. Speech and your bot](#3-set-up-speech-and-your-bot) | choose the speech services, add your bot, pick its look and voice | the admin page |
-| [4. The device](#4-flash-and-connect-the-device) | flash the firmware, set up its Wi-Fi from a phone, approve it | a computer with USB, your phone, the admin page |
+| [4. The device](#4-install-and-connect-the-device) | install the firmware from the browser, set up its Wi-Fi from a phone, approve it | a computer with Chrome, Edge or Firefox, your phone, the admin page |
 | [5. Grok Bot](#5-connect-grok-bot) | add the MCP server, the standing instructions and the voice routine | the Grok Bot desktop app |
 | [6. Talk to it](#6-talk-to-it) | type to your bot, then hold the screen and speak | your desk |
 
@@ -29,8 +29,10 @@ that run the whole loop on one computer: see
   `desk-admin.example.com`: use names under your own domain.
 - **An always-on machine with Docker and git**, such as a Mac mini with Docker Desktop (tested), or a
   Linux machine. It runs the bridge.
-- **A computer to flash the firmware**, with **ESP-IDF 6.1** (Windows, macOS or Linux) and a USB-C
-  cable.
+- **A computer with Chrome, Edge or Firefox (151 or newer)** and a USB-C cable that carries data, to
+  install the firmware from the [web installer](https://e-roy.github.io/grok-puck/). Nothing else to
+  install. (Building the firmware yourself with ESP-IDF is the developer route:
+  [firmware/README.md](../firmware/README.md).)
 - **Speech services**: one turns the bot's text into speech (TTS), one turns what you say into text
   (STT). Any service with OpenAI's audio API works, for example OpenAI itself, Groq (speech to text),
   or a self-hosted server such as Kokoro (text to speech) or Speaches. TTS and STT can come from
@@ -141,20 +143,19 @@ Everything from here on is set in the admin page.
 **Check:** the **Setup** list ticks "Text to speech answers", "Speech to text is set up" and "A bot
 has a voice".
 
-## 4. Flash and connect the device
+## 4. Install and connect the device
 
-1. **Flash the firmware** from a computer with ESP-IDF 6.1 (installed with Espressif's installer, then
-   used from its terminal so `idf.py` is on the path). Plug the board in with USB-C, then in
-   `firmware/`:
+1. **Install the firmware from the browser:** open the
+   [Grok Puck installer](https://e-roy.github.io/grok-puck/) in Chrome, Edge or Firefox (151 or newer)
+   on a computer, and plug the board in with a USB-C cable that carries data. Press **Install**,
+   choose the board's port (on Windows, "USB JTAG/serial debug unit"), then **Install Grok Puck**.
+   For the first install over Waveshare's demo firmware, tick **Erase device** for a clean start. It
+   takes about two minutes, then the board restarts by itself. The page offers Install only in a
+   browser that can do it, and otherwise says which to use. If the board doesn't connect, hold
+   **BOOT** while plugging it in, then try again.
 
-   ```sh
-   idf.py build
-   idf.py -p <port> flash       # e.g. -p COM3 on Windows, -p /dev/cu.usbmodem1101 on macOS
-   ```
-
-   On Windows, keep the repository in a short path: deep build folders break the 260-character limit.
-   If the board doesn't flash, hold **BOOT** while plugging it in, then try again. More in
-   [firmware/README.md](../firmware/README.md).
+   Building and flashing it yourself with ESP-IDF instead (for developers):
+   [firmware/README.md](../firmware/README.md#build-and-flash-for-developers).
 2. **Its Wi-Fi, from your phone:** on first start the screen shows a QR code for its setup network,
    `Desk-Setup-XXXX`. Join it with your phone: the setup page usually opens by itself; if it
    doesn't, open `http://192.168.4.1` in your phone's browser. Under **Add a network**, choose your
@@ -216,8 +217,12 @@ docker run --rm -v grok-puck_bridge_data:/data -v "$PWD":/backup alpine tar czf 
 The data lives in the Docker volume `grok-puck_bridge_data`, whatever the folder is called. The backup
 holds keys: keep it private.
 
-**Firmware updates** go over USB for now: `git pull`, then `idf.py build` and `idf.py -p <port> flash`
-in `firmware/`. The device keeps its Wi-Fi networks, bridge address and key.
+**Firmware updates** go over USB, from the [installer](https://e-roy.github.io/grok-puck/): plug the
+device into a computer and press **Install**, leaving **Erase device** unticked. The device keeps its
+Wi-Fi networks, bridge address and key, restarts by itself and reconnects; its card in the admin page
+shows the new version. Each version and what changed is on the
+[releases page](https://github.com/e-roy/grok-puck/releases). Developers can build and flash with
+ESP-IDF instead ([firmware/README.md](../firmware/README.md)).
 
 **Travelling:** the device keeps up to 5 Wi-Fi networks and joins the strongest one in reach. To add
 one, press **Wi-Fi setup** on the device's card in the admin page (its setup network opens for 10
@@ -235,7 +240,10 @@ username (work Wi-Fi) can't be joined: use your phone's hotspot there.
 | Speech: "fetch failed (… can't find that host name …)" | the bridge can't reach the speech server from inside Docker | use the speech server's public URL, or the speech network (step 3) |
 | The device shows its setup QR code again a minute after starting | it can't join any of its saved networks | join its setup network: the page says why each saved network failed (not found, password not accepted). Check the network is 2.4 GHz, or add it again with its password |
 | The setup QR code comes back about 2 minutes after the device joined Wi-Fi | it can't reach the bridge | the setup page says so: the address must be `wss://desk.example.com/device` (`ws://` only for a bridge on the home network, with port 8787); check Bot Fight Mode (step 2.6) |
-| The device stays offline (eyes closed, grey) on a working Wi-Fi | a wrong bridge address, or Cloudflare challenges it | as above; its setup network opens by itself after 2 minutes. To set a device up again from scratch, flash it with `idf.py -p <port> erase-flash flash` |
+| The device stays offline (eyes closed, grey) on a working Wi-Fi | a wrong bridge address, or Cloudflare challenges it | as above; its setup network opens by itself after 2 minutes. To set a device up again from scratch, install it again with **Erase device** ticked (step 4) |
+| The installer says this browser can't install firmware | the browser has no Web Serial (Safari, older Firefox, most phones), or the page isn't on its `https://` address | use Chrome, Edge or Firefox 151 or newer on a computer, on the installer's `https://` address |
+| The installer can't connect, there's no port to choose, or "Failed to open serial port" | something else has the port open, the cable only charges, or the board isn't answering | close anything using the port (`idf.py monitor`, a serial terminal, another tab with the installer); try another cable or USB port; hold **BOOT** while plugging the board in, then press Install again |
+| The screen stays dark after an install | the board didn't restart by itself | unplug it and plug it in again |
 | Joining the setup network doesn't open the setup page | some phones don't open it by themselves | open `http://192.168.4.1` in the phone's browser while it is on the setup network |
 | A phone warns that the setup network has no internet | it hasn't: it is the device's own network | expected; stay on it while you use the setup page |
 | Grok Bot can't connect to the MCP server | the key or header is wrong | the admin page's **Recent calls** lists refused calls and what the key looked like. The header value must be `Bearer <key>`, the key whole (43 characters). **Replace the key** and paste the new value. Requests for `/.well-known/oauth-…` answered 404 in the log are Grok Bot looking for a sign-in after the refusal: harmless |

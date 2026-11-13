@@ -4,7 +4,41 @@ ESP-IDF 6.1 + LVGL 9 firmware for the Waveshare **ESP32-S3-Touch-LCD-1.46**: the
 talk), microphone and speaker, Wi-Fi setup from a phone, and the link to the bridge. Design and
 behaviour: [docs/spec.md](../docs/spec.md) §4.
 
-## Build and flash
+## Install it from the browser
+
+No ESP-IDF needed: open the [Grok Puck installer](https://e-roy.github.io/grok-puck/) in Chrome, Edge
+or Firefox (151 or newer) on a computer, plug the board in with a USB-C cable that carries data, and
+press **Install**. It installs the latest release and keeps the device's settings (its Wi-Fi networks,
+bridge address and key); tick **Erase device** for a clean start. The whole setup, in order:
+[docs/setup.md](../docs/setup.md).
+
+## Releases
+
+Each [release](https://github.com/e-roy/grok-puck/releases) is built by GitHub Actions from `main`
+([.github/workflows/release.yml](../.github/workflows/release.yml)), never on someone's computer, and
+the installer page is deployed from the same build. Its files:
+
+| File | Flash offset | What it is |
+|---|---|---|
+| `grok-puck-<version>-bootloader.bin` | 0x0 | the bootloader |
+| `grok-puck-<version>-partition-table.bin` | 0x8000 | the partition table ([partitions.csv](partitions.csv)) |
+| `grok-puck-<version>-ota-data.bin` | 0xf000 | the OTA boot data (blank: start the first app slot) |
+| `grok-puck-<version>-app.bin` | 0x20000 | the app |
+| `manifest.json` | | the installer's manifest (ESP Web Tools) |
+| `grok-puck-<version>-notices.txt` | | the licences of everything in the firmware ([NOTICES.md](NOTICES.md)) |
+
+The parts are always written separately and never as one merged image: NVS, between 0x9000 and
+0xf000, keeps the device's settings, and a merged image would overwrite it. The packaging script
+([installer/](../installer/)) refuses any build in which a part would reach into NVS or any other
+partition but its own. To flash a release without the browser, with esptool 5:
+
+```sh
+esptool --chip esp32s3 write-flash 0x0 grok-puck-<version>-bootloader.bin 0x8000 grok-puck-<version>-partition-table.bin 0xf000 grok-puck-<version>-ota-data.bin 0x20000 grok-puck-<version>-app.bin
+```
+
+Making a release: [CONTRIBUTING.md](../CONTRIBUTING.md#making-a-release).
+
+## Build and flash (for developers)
 
 1. Install **ESP-IDF 6.1** (the Espressif installer on Windows, or `eim` / the install script on macOS
    and Linux) and open its terminal, so `idf.py` is on the path.
@@ -34,9 +68,15 @@ setting up its Wi-Fi again.
 
 If the board doesn't flash, hold **BOOT** while plugging it in (download mode), then try again. To set
 a device up again from scratch (Wi-Fi networks, bridge address and key), flash it with
-`idf.py -p <port> erase-flash flash`.
+`idf.py -p <port> erase-flash flash`, or use **Erase device** in the installer.
+
+To try the installer page with your own build: package it and serve it locally, as in
+[installer/README.md](../installer/README.md).
 
 Setting up the whole desk, in order (bridge, speech, device, Grok Bot): [docs/setup.md](../docs/setup.md).
+
+The published firmware contains third-party software under its own licences:
+[NOTICES.md](NOTICES.md).
 
 ## Layout (`main/`)
 

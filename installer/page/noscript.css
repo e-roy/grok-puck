@@ -1,0 +1,5 @@
+/* Without JavaScript the installer can't run, and its <noscript> message says so: no steps, no "Checking…". */
+.checking,
+.steps {
+  display: none;
+}
