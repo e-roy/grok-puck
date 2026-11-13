@@ -1,5 +1,6 @@
 // Devices: a highlighted card for each device waiting for approval, and a card per approved device
-// with its look and state, its settings, "Try it", and (set apart) Forget Wi-Fi and Forget.
+// with its look and state, its settings, "Try it", its Wi-Fi, and (set apart) Forget all networks and
+// Forget.
 import { EllipsisVerticalIcon, SendIcon, TabletSmartphoneIcon } from 'lucide-react';
 import { useState } from 'react';
 import { api, type Bot, type Device } from '@/api.ts';
@@ -29,6 +30,7 @@ import { ago, enc } from '@/lib/format.ts';
 import { pushList, readList } from '@/lib/local.ts';
 import { type Run, showError } from '@/lib/run.ts';
 import { Checklist } from './Checklist.tsx';
+import { DeviceWifi } from './DeviceWifi.tsx';
 
 const GREY = { shape: 'blob', color: '#9ca3af' } as const;
 
@@ -262,19 +264,22 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
 
         <Separator />
         <TryIt device={device} run={run} />
+        <Separator />
+        <DeviceWifi device={device} run={run} />
       </CardContent>
 
       <CardFooter className="flex flex-wrap items-center gap-2 border-t bg-muted/40">
         <span className="mr-auto text-xs text-muted-foreground">These can't be undone from here.</span>
         <ConfirmButton
+          danger
           size="sm"
           disabled={!online}
-          title={`Make ${device.name} forget its Wi-Fi?`}
-          description="It restarts and opens its setup network (Desk-Setup-…), where a phone can choose a new Wi-Fi network. Its approval and bot stay."
-          confirm="Forget Wi-Fi"
+          title={`Make ${device.name} forget all its Wi-Fi networks?`}
+          description="It restarts and opens its setup network (Desk-Setup-…), where a phone can add a network. Its approval, bot and bridge address stay."
+          confirm="Forget all networks"
           onConfirm={() => void run(() => api('POST', `${url}/forget-wifi`), 'It is restarting into Wi-Fi setup.')}
         >
-          Forget Wi-Fi
+          Forget all networks
         </ConfirmButton>
         <ConfirmButton
           danger

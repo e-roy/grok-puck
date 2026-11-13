@@ -10,6 +10,15 @@ export interface Timings {
   maxListenMs: number;
 }
 
+/** A device's Wi-Fi as it last reported it: network names only. */
+export interface DeviceWifi {
+  saved: string[]; // most recently joined first
+  current: string | null;
+  rssi: number | null; // dBm
+  setup: boolean; // its setup network is open
+  at: string;
+}
+
 export interface Device {
   id: string;
   name: string;
@@ -21,6 +30,7 @@ export interface Device {
   firmware: string;
   firstSeen: string;
   lastSeen: string;
+  wifi: DeviceWifi | null; // null: its firmware doesn't report its networks
   online: boolean;
   waiting: boolean;
   showing: string | null;
