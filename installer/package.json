@@ -1,0 +1,26 @@
+{
+  "name": "grok-puck-installer",
+  "version": "0.1.0",
+  "description": "The page that installs Grok Puck's firmware from the browser, and the script that packages a firmware build for it",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.2.2",
+      "onFail": "error"
+    }
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "package": "node scripts/package.mjs",
+    "serve": "node scripts/serve.mjs"
+  },
+  "dependencies": {
+    "esp-web-tools": "^10.4.0"
+  }
+}

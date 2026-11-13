@@ -18,6 +18,9 @@ bridge/data/
 bridge/admin/dist/
 bridge/.fake/
 
+# Installer: the packaged page and release files (a local build holds this computer's paths)
+installer/dist/
+
 # Logs: they hold local paths, serial ports and the board's MAC address
 *.log
 
