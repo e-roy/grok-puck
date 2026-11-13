@@ -1,0 +1,242 @@
+# Release firmware: builds the firmware, publishes it as the GitHub Release v<version> and deploys the
+# web installer to GitHub Pages. Started by hand, from main only (CONTRIBUTING.md, "Making a release"):
+#   1. raise PROJECT_VER in firmware/CMakeLists.txt in a pull request, and merge it;
+#   2. Actions -> Release firmware -> Run workflow, on main.
+# A version that already has a release or a tag is refused, so a release is never replaced.
+#
+# Only files built here are published, never a local build. As in ci.yml, every action is pinned to a
+# full commit SHA from a release at least 7 days old, and only GitHub's, pnpm's and Espressif's are used.
+# Each job has only the permissions it needs: contents: write only where the release is made, pages:
+# write and id-token: write only where the page is deployed. Nothing is restored from a cache.
+name: Release firmware
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  # One release at a time, and a running release is never cancelled.
+  group: release-firmware
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pages: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      page_url: ${{ steps.pages.outputs.url }}
+    steps:
+      - name: Only from main
+        run: |
+          if [ "$GITHUB_REF" != refs/heads/main ]; then
+            echo "::error::Run Release firmware from main, not $GITHUB_REF."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Version from firmware/CMakeLists.txt
+        id: version
+        run: |
+          version=$(sed -n 's/^set(PROJECT_VER "\([^"]*\)").*/\1/p' firmware/CMakeLists.txt)
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::PROJECT_VER in firmware/CMakeLists.txt must look like 1.2.3, not \"$version\"."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing v$version from $GITHUB_SHA."
+      - name: No release or tag for this version yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Fails when the release or tag exists, and when GitHub can't say (anything but a 404).
+          absent() {
+            if err=$(gh api "$1" 2>&1 >/dev/null); then
+              echo "::error::The $2 v$VERSION exists already: raise PROJECT_VER in firmware/CMakeLists.txt first."
+              exit 1
+            fi
+            case "$err" in
+              *"(HTTP 404)"*) ;;
+              *) echo "::error::Couldn't check for the $2 v$VERSION: $err"; exit 1 ;;
+            esac
+          }
+          absent "repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION" release
+          absent "repos/$GITHUB_REPOSITORY/git/ref/tags/v$VERSION" tag
+      - name: GitHub Pages deploys from Actions
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Checked before anything is published, so a release never goes out without its page.
+          if ! pages=$(gh api "repos/$GITHUB_REPOSITORY/pages" 2>&1); then
+            echo "::error::GitHub Pages isn't set up: Settings -> Pages -> Source: GitHub Actions. ($pages)"
+            exit 1
+          fi
+          if [ "$(printf '%s' "$pages" | jq -r .build_type)" != workflow ]; then
+            echo "::error::GitHub Pages must deploy from GitHub Actions: Settings -> Pages -> Source: GitHub Actions."
+            exit 1
+          fi
+          echo "url=$(printf '%s' "$pages" | jq -r .html_url)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    container:
+      # The same image as ci.yml's firmware check: Espressif's ESP-IDF v6.1 image, pinned by digest.
+      image: espressif/idf:v6.1@sha256:81893c71bb5e570088901f21def8684c25cd2a9020281bd01b843a7655edb18c
+    defaults:
+      run:
+        shell: bash
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build for esp32s3
+        run: |
+          . "$IDF_PATH/export.sh" > /dev/null
+          idf.py build
+      - name: The C library's licence, for the licence notices
+        # Kept out of the repository: it names its copyright holders, file by file.
+        run: cp "$IDF_PATH/components/esp_libc/COPYING.picolibc" build/
+      - name: Keep the files idf.py flash writes
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: firmware-build
+          path: |
+            firmware/build/flash_args
+            firmware/build/*.bin
+            firmware/build/bootloader/bootloader.bin
+            firmware/build/partition_table/partition-table.bin
+            firmware/build/COPYING.picolibc
+          if-no-files-found: error
+          retention-days: 7
+
+  package:
+    name: package
+    needs: [check, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: installer
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: pnpm version from package.json
+        id: pnpm
+        # Exactly the version devEngines names (^11.2.2 -> 11.2.2), as in ci.yml.
+        run: |
+          echo "version=$(jq -r '.devEngines.packageManager.version | sub("^[~^]"; "")' package.json)" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: ${{ steps.pnpm.outputs.version }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: firmware-build
+          path: ${{ runner.temp }}/firmware-build
+      - name: Package the page and the release files
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          PAGE_URL: ${{ needs.check.outputs.page_url }}
+        run: >-
+          node scripts/package.mjs --build "$RUNNER_TEMP/firmware-build" --out dist
+          --version "$VERSION" --commit "$GITHUB_SHA" --repo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          --page-url "$PAGE_URL"
+      - name: Keep the page for GitHub Pages (the built page only)
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: installer/dist/site
+          retention-days: 7
+      - name: Keep the release files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: |
+            installer/dist/release
+            installer/dist/release-notes.md
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: release
+    needs: [check, package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      # No checkout: this job, the only one that can write to the repository, runs no repository code.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: ${{ runner.temp }}/release
+      - name: Create the release on the commit that was built
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.check.outputs.version }}
+          DIR: ${{ runner.temp }}/release
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          # Checked again with this token, which also sees draft releases.
+          if gh release view "$tag" > /dev/null 2>&1; then
+            echo "::error::A release $tag exists already (perhaps a draft from a failed run: delete it first)."
+            exit 1
+          fi
+          if err=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" 2>&1 >/dev/null) || [[ "$err" != *"(HTTP 404)"* ]]; then
+            echo "::error::The tag $tag exists already, or GitHub couldn't say: ${err:-it exists}"
+            exit 1
+          fi
+          files=("$DIR"/release/*)
+          if [ "${#files[@]}" -ne 6 ]; then
+            echo "::error::Expected 6 release files (4 parts, the manifest, the notices), found ${#files[@]}."
+            exit 1
+          fi
+          # A draft first, so nothing is public until every file is uploaded.
+          gh release create "$tag" "${files[@]}" --draft --target "$GITHUB_SHA" \
+            --title "Grok Puck $VERSION" --notes-file "$DIR/release-notes.md" --generate-notes
+          uploaded=$(gh release view "$tag" --json assets --jq '.assets | length')
+          if [ "$uploaded" -ne 6 ]; then
+            echo "::error::The draft release $tag has $uploaded files, not 6: it stays a draft."
+            exit 1
+          fi
+          # Publishing creates the tag, on the commit that was built.
+          gh release edit "$tag" --draft=false
+          echo "Published $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$tag"
+
+  deploy:
+    name: deploy
+    needs: [package, release]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the installer page
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
