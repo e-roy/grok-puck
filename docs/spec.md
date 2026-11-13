@@ -155,10 +155,11 @@ is no countdown and no silence timeout.
 - Volume is set in the admin page; the board's trimmer still works.
 
 ### 4.6 Setup and link
-1. First boot, or after "forget Wi-Fi": the device starts its own Wi-Fi network (`Desk-Setup-XXXX`,
-   WPA2 with a new random password each time) and shows a QR code to join it, plus the name and
-   password. A phone that joins opens the setup page by itself (captive portal); there you pick the
-   home Wi-Fi (2.4 GHz), type its password and the bridge address (`desk.example.com` through the
+1. First boot, or after **Forget all networks**: the device starts its own Wi-Fi network
+   (`Desk-Setup-XXXX`, WPA2 with a new random password each time) and shows a QR code to join it, plus
+   the name and password. A phone that joins usually opens the setup page by itself (captive portal);
+   if it doesn't, the page is at `http://192.168.4.1` in the phone's browser. There you add the home
+   Wi-Fi (2.4 GHz) with its password, and type the bridge address (`desk.example.com` through the
    tunnel, or `192.168.1.20:8787` on the home network).
 2. The device joins Wi-Fi, connects to `wss://<bridge host>/device`, says hello (its ID from the MAC
    address, firmware version), and waits as **pending**.
@@ -169,33 +170,56 @@ is no countdown and no silence timeout.
 **Travelling: several saved networks.** The device remembers up to **5** Wi-Fi networks, so it can be
 taken elsewhere and brought back without setting it up again.
 - **Joining:** at start, or when Wi-Fi drops, it scans and joins the saved network with the strongest
-  signal; if that fails it tries the next one. The network it joins moves to the top of the list.
+  signal; if that fails it tries the next one. Saved networks the scan didn't find (a hidden network)
+  are tried last. The network it joins moves to the top of the list. Rounds are retried after 1, 2, 4,
+  8 and then every 15 s.
 - **Passwords stay on the device** (NVS). The bridge and the admin page only ever see network names.
 - **The bridge address** should be the public one (`wss://desk.example.com/device`), so the device
   reaches its bridge from any network. A home-network address only works at home. Changing the
-  address drops the device's key (a key belongs to one bridge); the new bridge asks for approval.
+  address drops the device's key (a key belongs to one bridge); the new bridge asks for approval. A
+  device that was already connected to a bridge restarts to connect to the new one.
+- **Updating from older firmware** (0.5 and before kept one network): the first start moves that
+  network into the list, so the device stays on its Wi-Fi. Going back to 0.5 or earlier afterwards
+  means setting up its Wi-Fi again, since that firmware doesn't read the list.
 - **Networks it can join:** 2.4 GHz with a normal password (WPA2/WPA3 personal) or open. Networks with
   a sign-in web page (hotels, cafés) or a username and password (eduroam, work Wi-Fi) can't be joined:
   use a phone's hotspot there.
 
 **The setup network opens** (`Desk-Setup-XXXX` with its QR code, as at first boot) when:
-1. none of the saved networks is joined within about a minute of starting or of losing Wi-Fi;
+1. none of the saved networks is joined within about a minute of starting or of losing Wi-Fi (at once
+   when none is saved);
 2. Wi-Fi works but the bridge can't be reached for **2 minutes** (a network that blocks it, or a wrong
-   bridge address);
+   bridge address), or no bridge address is saved yet;
 3. the admin page asks for it (**Wi-Fi setup** on the device's card): the device stays online meanwhile
    and closes the setup network after 10 minutes.
+
+It closes once none of these holds any more, but never sooner than 2 minutes after its page was last
+used, so a phone can see the result of what it just did.
 
 While it is open, the device keeps trying its saved networks (every 30 s, unless a phone is on the
 setup network), so a router that comes back after a power cut is joined without help.
 
-**The setup page** (on the phone that joined the setup network): nearby networks, with saved ones
-marked; **Add** a network (the device joins it to check the password before saving it, and says so if
-it can't); the saved networks, each with **Forget**; and the bridge address.
+**The setup page** (on the phone that joined the setup network): why it is open (no saved network
+joined, the bridge can't be reached, or asked from the admin page); nearby networks, with saved ones
+marked; **Add** a network; the saved networks, each with whether it is in use or in reach and why it
+last failed, and **Forget**; and the bridge address.
+- **Add** joins the network first, to check the password, and saves it at the top only if that
+  works; otherwise it says why (the password was not accepted, the network wasn't found) and the
+  saved networks stay as they were. Adding a network that is saved already changes its password. At
+  5 saved networks, one must be forgotten first.
+- **The phone may drop off meanwhile:** the device has one radio, so its setup network moves to the
+  channel of the network being tried. The page shows "Checking…" with a spinner and asks every 2 s;
+  once the phone is back on the setup network (by itself, or joined again by hand), it shows the
+  result, which stays until the next Add.
+- **Forget** on the network in use makes the device leave it and join another saved one.
+- A phone may warn, when the page is closed, that the setup network has no internet: it doesn't, and
+  that is expected.
 
 **The admin page** (device card → Wi-Fi): the saved network names, which one is in use and its signal;
 **Forget** for each; **Wi-Fi setup** (opens the setup network, to add a network from a phone); and
 **Forget all networks** (restarts straight into setup). Networks are added only on the setup page, so
-Wi-Fi passwords never pass through the bridge.
+Wi-Fi passwords never pass through the bridge. Devices on firmware older than 0.6.0 don't report
+their networks: their card has no Wi-Fi part, only Forget all networks.
 
 No button or gesture on the device is used (holding BOOT while plugging in is download mode).
 
@@ -240,11 +264,16 @@ No button or gesture on the device is used (holding BOOT while plugging in is do
 ### 5.3 Device protocol (implemented in `bridge/src/protocol.ts`)
 One WebSocket per device: JSON control messages plus binary audio frames.
 - Device → bridge:
-  - `hello` (device id, firmware version, its key once approved);
+  - `hello` (device id, firmware version, its key once approved, and from firmware 0.6.0 its Wi-Fi:
+    `"wifi": {"saved": ["Home", "Phone"], "current": "Home", "rssi": -58, "setup": false}`, network
+    names only);
   - `listen.start`, then microphone frames (16 kHz PCM), then `listen.end` or `listen.cancel`;
   - `played` (a clip finished or was stopped);
   - `stop` (the owner touched the screen to stop speech);
-  - `state` (informational).
+  - `state` (informational);
+  - `wifi` (the same fields as in hello, when the saved networks, the one in use, the setup network or
+    the signal (by 5 dB or more) change). An older bridge answers it with an `error`
+    ("unrecognised message"); the device then sends no more until it reconnects.
 - Bridge → device:
   - `pending` (waiting for approval);
   - `welcome` (the device key, on approval);
@@ -252,8 +281,13 @@ One WebSocket per device: JSON control messages plus binary audio frames.
   - `show` (state to display);
   - `play.start`, then audio frames (24 kHz PCM, sent about 1 s ahead of real time), then `play.end`;
   - `stop`;
-  - `wifi.forget` (from the admin page: forget the Wi-Fi network and open setup);
+  - `wifi.setup` (from the admin page: open the setup network for 10 minutes, staying online);
+  - `wifi.forget_network` with `ssid` (from the admin page: forget one saved network);
+  - `wifi.forget` (from the admin page: forget all networks and restart into setup);
   - `error`.
+
+  The bridge sends `wifi.setup` and `wifi.forget_network` only to devices that report their networks;
+  older firmware ignores message types it doesn't know.
 
 ### 5.4 Webhook to the bot
 POST to the routine's webhook URL with `Authorization: Bearer <webhook key>` and a body like:
@@ -396,7 +430,8 @@ until closed. Confirmations are dialogs, not the browser's `confirm`. The page r
 both themes. Checked with Chrome DevTools at 1280 and 390 px wide, light and dark, with no console
 errors.
 
-The admin API stays as it is; anything new on the page is worked out in the page.
+The page's redesign didn't change the admin API: what it shows differently is worked out in the page.
+New endpoints come only with new features, like Wi-Fi setup and Forget for one network (§4.6).
 
 ### 5.9 Security
 - Random 256-bit keys. Secrets are entered once and never shown again in full, and never logged.
