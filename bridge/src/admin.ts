@@ -175,7 +175,7 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     if (!body) return;
     if (body.botId && !store.bot(body.botId)) return bad(reply, 'Unknown bot.');
     const problem = hub.approve(param(req, 'id'), body);
-    if (problem) return bad(reply, problem.charAt(0).toUpperCase() + problem.slice(1) + '.');
+    if (problem) return bad(reply, sentence(problem));
     store.addHistory({ kind: 'device', ok: true, deviceId: param(req, 'id'), detail: 'approved' });
     return { ok: true };
   });
@@ -202,12 +202,37 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     return { ok: true };
   });
 
+  // Forget all networks: the device restarts into setup.
   app.post('/api/devices/:id/forget-wifi', async (req, reply) => {
     const device = store.device(param(req, 'id'));
     if (!device) return notFound(reply);
     if (!hub.forgetWifi(device.id)) return bad(reply, 'The device must be online to receive this.');
-    store.addHistory({ kind: 'device', ok: true, deviceId: device.id, detail: 'told to forget its Wi-Fi' });
+    store.addHistory({ kind: 'device', ok: true, deviceId: device.id, detail: 'told to forget all its Wi-Fi networks' });
     return { ok: true };
+  });
+
+  app.post('/api/devices/:id/forget-network', async (req, reply) => {
+    const device = store.device(param(req, 'id'));
+    if (!device) return notFound(reply);
+    const body = parse(z.object({ ssid: z.string().min(1).max(32) }), req.body, reply);
+    if (!body) return;
+    const problem = hub.forgetNetwork(device.id, body.ssid);
+    if (problem) return bad(reply, sentence(problem));
+    store.addHistory({ kind: 'device', ok: true, deviceId: device.id, detail: `told to forget the Wi-Fi network "${body.ssid}"` });
+    return { ok: true, message: `${device.name} forgets ${body.ssid}.` };
+  });
+
+  // Opens the device's setup network for 10 minutes, so a phone can add a network there.
+  app.post('/api/devices/:id/wifi-setup', async (req, reply) => {
+    const device = store.device(param(req, 'id'));
+    if (!device) return notFound(reply);
+    const problem = hub.openWifiSetup(device.id);
+    if (problem) return bad(reply, sentence(problem));
+    store.addHistory({ kind: 'device', ok: true, deviceId: device.id, detail: 'told to open its Wi-Fi setup' });
+    return {
+      ok: true,
+      message: `${device.name} opens its setup network for 10 minutes: join it from a phone with the QR code on its screen.`,
+    };
   });
 
   app.post('/api/devices/:id/say', async (req, reply) => {
@@ -306,6 +331,7 @@ function overview(ctx: AdminContext) {
   return {
     devices: s.devices.map(({ keyHash: _hidden, ...d }) => ({
       ...d,
+      wifi: d.wifi ?? null, // null: its firmware doesn't report its networks
       online: hub.isOnline(d.id),
       waiting: hub.isWaiting(d.id),
       showing: hub.shown(d.id) ?? null,
@@ -331,6 +357,11 @@ function parse<T>(schema: z.ZodType<T>, body: unknown, reply: FastifyReply): T |
   const issue = result.error.issues[0];
   void bad(reply, `${issue?.path.join('.') || 'body'}: ${issue?.message ?? 'invalid'}`);
   return undefined;
+}
+
+/** "the device must be online" → "The device must be online." */
+function sentence(problem: string): string {
+  return problem.charAt(0).toUpperCase() + problem.slice(1) + '.';
 }
 
 function param(req: FastifyRequest, name: string): string {
