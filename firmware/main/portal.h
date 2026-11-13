@@ -1,6 +1,7 @@
 // The setup page, served on the device's own setup network: a small web server plus a DNS responder
 // that answers every name with the device's address, so a phone that joins opens the page by itself.
-// The page asks for the home Wi-Fi and the bridge address, saves them and restarts the device.
+// The page lists nearby networks, adds a network (after joining it to check the password), forgets
+// saved ones, and sets the bridge address. It reads and changes the Wi-Fi through net.c.
 #pragma once
 
 #include <stdbool.h>
@@ -8,10 +9,9 @@
 #include <stdint.h>
 
 #include "esp_err.h"
-#include "settings.h"
 
-// `ip` is the setup network's address (network byte order); `saved` fills in the form.
-esp_err_t portal_start(uint32_t ip, const settings_t *saved);
+// `ip` is the setup network's address (network byte order).
+esp_err_t portal_start(uint32_t ip);
 void portal_stop(void);
 
 // Turns what the owner typed into a WebSocket URL: adds ws:// for an address with a port or an IP,

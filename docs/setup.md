@@ -156,8 +156,12 @@ has a voice".
    If the board doesn't flash, hold **BOOT** while plugging it in, then try again. More in
    [firmware/README.md](../firmware/README.md).
 2. **Its Wi-Fi, from your phone:** on first start the screen shows a QR code for its setup network,
-   `Desk-Setup-XXXX`. Join it with your phone and the setup page opens by itself. Choose your Wi-Fi
-   (2.4 GHz only), type its password, and the bridge address: `wss://desk.example.com/device`.
+   `Desk-Setup-XXXX`. Join it with your phone: the setup page usually opens by itself; if it
+   doesn't, open `http://192.168.4.1` in your phone's browser. Under **Add a network**, choose your
+   Wi-Fi (2.4 GHz only), type its password and press **Add**: the device joins it to check the
+   password, and your phone may lose the setup network for a moment (join it again if it doesn't come
+   back by itself; the page then shows the result). Then type the bridge address,
+   `wss://desk.example.com/device`, and press **Save the address**.
 3. **Approve it:** in the admin page, **Devices** shows the new device. Choose its bot and press
    **Approve** while the device is online: it receives its own key and shows your bot's avatar.
 4. Put it in its case and stand, if you printed them ([assembly](../hardware/README.md#prints)).
@@ -213,7 +217,14 @@ The data lives in the Docker volume `grok-puck_bridge_data`, whatever the folder
 holds keys: keep it private.
 
 **Firmware updates** go over USB for now: `git pull`, then `idf.py build` and `idf.py -p <port> flash`
-in `firmware/`. The device keeps its Wi-Fi, bridge address and key.
+in `firmware/`. The device keeps its Wi-Fi networks, bridge address and key.
+
+**Travelling:** the device keeps up to 5 Wi-Fi networks and joins the strongest one in reach. To add
+one, press **Wi-Fi setup** on the device's card in the admin page (its setup network opens for 10
+minutes and it stays online), or just switch it on somewhere new: when no saved network is in reach
+for a minute, the setup network opens by itself. The card lists the saved networks, which one is in
+use and its signal, with **Forget** for each. Networks with a sign-in page (hotels, cafés) or a
+username (work Wi-Fi) can't be joined: use your phone's hotspot there.
 
 ## Troubleshooting
 
@@ -222,8 +233,11 @@ in `firmware/`. The device keeps its Wi-Fi, bridge address and key.
 | `curl …/healthz` fails, or Cloudflare shows error 530 | the tunnel isn't connected | `docker compose logs cloudflared`; check the tunnel token in `.env` and the routes' Service URLs (`http://bridge:8787`, `http://bridge:8788`) |
 | The admin page shows an error after the Cloudflare login | `CF_ACCESS_AUD` or `CF_ACCESS_TEAM_DOMAIN` is wrong | copy both again (step 2.4), then `docker compose up -d` |
 | Speech: "fetch failed (… can't find that host name …)" | the bridge can't reach the speech server from inside Docker | use the speech server's public URL, or the speech network (step 3) |
-| The device shows its setup QR code again a minute after starting | it can't join the Wi-Fi | check the network is 2.4 GHz and the password; set it up again from your phone |
-| The device stays offline (eyes closed, grey) on a working Wi-Fi | a wrong bridge address, or Cloudflare challenges it | the address must be `wss://desk.example.com/device`; check Bot Fight Mode (step 2.6). To set a device up again from scratch, flash it with `idf.py -p <port> erase-flash flash` |
+| The device shows its setup QR code again a minute after starting | it can't join any of its saved networks | join its setup network: the page says why each saved network failed (not found, password not accepted). Check the network is 2.4 GHz, or add it again with its password |
+| The setup QR code comes back about 2 minutes after the device joined Wi-Fi | it can't reach the bridge | the setup page says so: the address must be `wss://desk.example.com/device` (`ws://` only for a bridge on the home network, with port 8787); check Bot Fight Mode (step 2.6) |
+| The device stays offline (eyes closed, grey) on a working Wi-Fi | a wrong bridge address, or Cloudflare challenges it | as above; its setup network opens by itself after 2 minutes. To set a device up again from scratch, flash it with `idf.py -p <port> erase-flash flash` |
+| Joining the setup network doesn't open the setup page | some phones don't open it by themselves | open `http://192.168.4.1` in the phone's browser while it is on the setup network |
+| A phone warns that the setup network has no internet | it hasn't: it is the device's own network | expected; stay on it while you use the setup page |
 | Grok Bot can't connect to the MCP server | the key or header is wrong | the admin page's **Recent calls** lists refused calls and what the key looked like. The header value must be `Bearer <key>`, the key whole (43 characters). **Replace the key** and paste the new value. Requests for `/.well-known/oauth-…` answered 404 in the log are Grok Bot looking for a sign-in after the refusal: harmless |
 | Typed replies aren't spoken | the bot didn't keep its standing instructions | **Recent calls** shows whether it calls `desk_say`; send the instructions again ([step 2 of the Grok Bot guide](grok-bot-setup.md#2-the-standing-instructions)) |
 | A spoken message ends in an error, or "no answer" after 3 minutes | the routine's webhook URL or key is wrong, or the routine is paused | the Webhook key is the routine's **key** field alone, not the **header** field. In the app, the routine's switch (bot panel → **Activity** → **Upcoming**) must be on |

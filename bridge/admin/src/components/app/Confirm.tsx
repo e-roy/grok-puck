@@ -24,6 +24,7 @@ export function ConfirmButton({
   disabled,
   danger,
   size,
+  label,
 }: {
   children: ReactNode;
   title: string;
@@ -33,6 +34,8 @@ export function ConfirmButton({
   disabled?: boolean;
   danger?: boolean;
   size?: 'default' | 'sm';
+  /** The button's name for screen readers, when its text alone is ambiguous (several "Forget"). */
+  label?: string;
 }) {
   // Controlled, so confirming closes the dialog: the action is a plain button, and the button that
   // opened it may still be there afterwards (Replace the key) with whatever the action showed.
@@ -40,7 +43,15 @@ export function ConfirmButton({
   return (
     <AlertDialog open={open} onOpenChange={setOpen}>
       <AlertDialogTrigger
-        render={<Button variant="outline" size={size} disabled={disabled} className={cn(danger && 'text-destructive hover:text-destructive')} />}
+        render={
+          <Button
+            variant="outline"
+            size={size}
+            disabled={disabled}
+            aria-label={label}
+            className={cn(danger && 'text-destructive hover:text-destructive')}
+          />
+        }
       >
         {children}
       </AlertDialogTrigger>

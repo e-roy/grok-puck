@@ -25,6 +25,15 @@ export interface Timings {
   maxListenMs: number; // the longest message: listening ends here even if the finger is still down
 }
 
+/** A device's Wi-Fi as it last reported it (firmware 0.6.0 and later): network names, never passwords. */
+export interface DeviceWifi {
+  saved: string[]; // most recently joined first
+  current: string | null;
+  rssi: number | null; // dBm
+  setup: boolean; // its setup network is open
+  at: string; // when it reported this
+}
+
 export interface Device {
   id: string;
   name: string;
@@ -37,6 +46,7 @@ export interface Device {
   firmware: string;
   firstSeen: string;
   lastSeen: string;
+  wifi?: DeviceWifi; // absent for firmware that doesn't report it
 }
 
 export interface SpeechService {

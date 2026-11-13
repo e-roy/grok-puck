@@ -7,6 +7,8 @@
 #include "esp_crt_bundle.h"
 #include "esp_log.h"
 #include "esp_websocket_client.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 static const char *TAG = "link";
 
@@ -26,6 +28,14 @@ static char firmware[48];
 static char key[129];
 static char *text;  // a text message arriving in parts
 
+// The Wi-Fi report (set from the Wi-Fi task, read on the link's task).
+static SemaphoreHandle_t wifi_lock;
+static link_wifi_t wifi;
+static bool have_wifi;
+// A bridge older than this firmware answers a `wifi` message with "unrecognised message". Then no
+// more are sent on that connection; its hello still carries the report, which it ignores.
+static volatile bool bridge_takes_wifi = true;
+
 static bool send_json(cJSON *message) {
     char *s = cJSON_PrintUnformatted(message);
     cJSON_Delete(message);
@@ -44,12 +54,45 @@ static cJSON *message(const char *type) {
     return m;
 }
 
+// {"saved": [...], "current": "..." | null, "rssi": -58 | null, "setup": false}, into `m`.
+static void add_wifi(cJSON *m, const link_wifi_t *w) {
+    cJSON *saved = cJSON_AddArrayToObject(m, "saved");
+    for (int i = 0; i < w->count; i++) cJSON_AddItemToArray(saved, cJSON_CreateString(w->saved[i]));
+    if (w->current[0]) {
+        cJSON_AddStringToObject(m, "current", w->current);
+        cJSON_AddNumberToObject(m, "rssi", w->rssi);
+    } else {
+        cJSON_AddNullToObject(m, "current");
+        cJSON_AddNullToObject(m, "rssi");
+    }
+    cJSON_AddBoolToObject(m, "setup", w->setup);
+}
+
 static void send_hello(void) {
     cJSON *m = message("hello");
     cJSON_AddStringToObject(m, "device_id", device_id);
     cJSON_AddStringToObject(m, "firmware", firmware);
     if (key[0]) cJSON_AddStringToObject(m, "key", key);
+    xSemaphoreTake(wifi_lock, portMAX_DELAY);
+    if (have_wifi) add_wifi(cJSON_AddObjectToObject(m, "wifi"), &wifi);
+    xSemaphoreGive(wifi_lock);
     send_json(m);
+}
+
+void link_set_wifi(const link_wifi_t *w) {
+    // Created by whichever comes first; both this and link_start() run on the Wi-Fi task.
+    if (!wifi_lock) wifi_lock = xSemaphoreCreateMutex();
+    xSemaphoreTake(wifi_lock, portMAX_DELAY);
+    const bool changed = !have_wifi || memcmp(&wifi, w, sizeof(wifi)) != 0;
+    wifi = *w;
+    have_wifi = true;
+    cJSON *m = NULL;
+    if (changed && bridge_takes_wifi && client && esp_websocket_client_is_connected(client)) {
+        m = message("wifi");
+        add_wifi(m, &wifi);
+    }
+    xSemaphoreGive(wifi_lock);
+    if (m) send_json(m);
 }
 
 void link_send_played(const char *id, bool stopped) {
@@ -121,11 +164,23 @@ static void handle_text(const char *json, size_t len) {
         on.play_end(string_of(m, "id"));
     } else if (!strcmp(type, "stop")) {
         on.stop();
+    } else if (!strcmp(type, "wifi.setup")) {
+        ESP_LOGI(TAG, "the admin page asked for the Wi-Fi setup network");
+        on.wifi_setup();
+    } else if (!strcmp(type, "wifi.forget_network")) {
+        ESP_LOGW(TAG, "the admin page asked this device to forget one of its Wi-Fi networks");
+        on.forget_network(string_of(m, "ssid"));
     } else if (!strcmp(type, "wifi.forget")) {
-        ESP_LOGW(TAG, "the admin page asked this device to forget its Wi-Fi");
+        ESP_LOGW(TAG, "the admin page asked this device to forget all its Wi-Fi networks");
         on.forget_wifi();
     } else if (!strcmp(type, "error")) {
-        ESP_LOGW(TAG, "the bridge says: %s", string_of(m, "message"));
+        const char *said = string_of(m, "message");
+        ESP_LOGW(TAG, "the bridge says: %s", said);
+        if (!strcmp(said, "unrecognised message") && bridge_takes_wifi) {
+            // The only message this firmware sends that an older bridge doesn't know.
+            bridge_takes_wifi = false;
+            ESP_LOGI(TAG, "this bridge is older than the firmware: no Wi-Fi updates until it reconnects");
+        }
     } else {
         ESP_LOGW(TAG, "unknown message from the bridge: %.40s", type[0] ? type : "(not JSON)");
     }
@@ -162,6 +217,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data) {
         case WEBSOCKET_EVENT_CONNECTED:
             ESP_LOGI(TAG, "connected to the bridge");
             esp_websocket_client_set_reconnect_timeout(client, RETRY_MS);
+            bridge_takes_wifi = true;  // perhaps a newer bridge now
             send_hello();
             break;
         case WEBSOCKET_EVENT_DATA:
@@ -209,6 +265,7 @@ static void on_event(void *arg, esp_event_base_t base, int32_t id, void *data) {
 esp_err_t link_start(const char *url, const char *id, const char *fw, const char *device_key,
                      const link_handlers_t *handlers) {
     if (client) return ESP_OK;
+    if (!wifi_lock) wifi_lock = xSemaphoreCreateMutex();
     on = *handlers;
     snprintf(device_id, sizeof(device_id), "%s", id);
     snprintf(firmware, sizeof(firmware), "%s", fw);

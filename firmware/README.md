@@ -20,12 +20,20 @@ behaviour: [docs/spec.md](../docs/spec.md) §4.
 
    Build in a short path: Windows' 260-character path limit breaks deep build folders.
 4. On first start the screen shows a QR code for its setup network `Desk-Setup-XXXX`. Join it with a
-   phone: the setup page opens by itself. Choose your Wi-Fi (2.4 GHz) and type the bridge address
-   (`wss://desk.example.com/device` behind the tunnel, or `192.168.1.20:8787` on the home network).
+   phone: the setup page usually opens by itself; if it doesn't, open `http://192.168.4.1` in the
+   phone's browser. Add your Wi-Fi (2.4 GHz) with its password (the device joins it to check the
+   password before saving it), and type the bridge address (`wss://desk.example.com/device` behind
+   the tunnel, or `192.168.1.20:8787` on the home network).
 5. Approve the device in the bridge's admin page.
 
+The device keeps up to 5 Wi-Fi networks and joins the strongest one in reach, so it can travel. More
+networks are added from the same setup page: the device card's **Wi-Fi setup** in the admin page
+opens it, and so does being out of reach of every saved network for a minute. Updating from 0.5 or
+earlier keeps the one network that firmware saved; going back to 0.5 or earlier afterwards means
+setting up its Wi-Fi again.
+
 If the board doesn't flash, hold **BOOT** while plugging it in (download mode), then try again. To set
-a device up again from scratch (Wi-Fi, bridge address and key), flash it with
+a device up again from scratch (Wi-Fi networks, bridge address and key), flash it with
 `idf.py -p <port> erase-flash flash`.
 
 Setting up the whole desk, in order (bridge, speech, device, Grok Bot): [docs/setup.md](../docs/setup.md).
@@ -38,7 +46,7 @@ Setting up the whole desk, in order (bridge, speech, device, Grok Bot): [docs/se
 | `board.c` | display (SPD2010, QSPI), touch, backlight, I/O expander |
 | `audio.c` | speaker (PCM5101) and microphone over I2S |
 | `face.c` | the avatar, its states and the setup screen (LVGL) |
-| `net.c`, `portal.c` | Wi-Fi, the setup network and its captive page |
+| `net.c`, `portal.c` | Wi-Fi (joining the saved networks), the setup network and its captive page |
 | `link.c` | the WebSocket link to the bridge |
 | `player.c`, `listen.c` | playing the bot's speech; hold to talk |
 | `settings.c` | what is kept in flash (NVS) |

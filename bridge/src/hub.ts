@@ -5,7 +5,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { RawData, WebSocket } from 'ws';
 import type { Clip } from './clip.ts';
 import { hashKey, keyMatches, newKey } from './keys.ts';
-import { type BridgeMessage, type DeviceConfig, type DisplayState, type Hello, parseDeviceMessage } from './protocol.ts';
+import { type BridgeMessage, type DeviceConfig, type DisplayState, type Hello, parseDeviceMessage, type WifiReport } from './protocol.ts';
 import { DEFAULT_TIMINGS, type Device, type Store } from './store.ts';
 
 const HELLO_TIMEOUT_MS = 10_000;
@@ -138,12 +138,36 @@ export class DeviceHub {
     this.store.changed();
   }
 
-  /** Tells an online device to forget its Wi-Fi and open its setup network. False if it is offline. */
+  /** Tells an online device to forget all its Wi-Fi networks and restart into setup. False if it is offline. */
   forgetWifi(id: string): boolean {
     const link = this.links.get(id);
     if (!link) return false;
     this.send(link.socket, { type: 'wifi.forget' });
     return true;
+  }
+
+  /** Tells an online device to open its setup network for a while. Returns why it can't, or null. */
+  openWifiSetup(id: string): string | null {
+    const problem = this.wifiProblem(id);
+    if (problem) return problem;
+    this.send(this.links.get(id)!.socket, { type: 'wifi.setup' });
+    return null;
+  }
+
+  /** Tells an online device to forget one of its saved networks. Returns why it can't, or null. */
+  forgetNetwork(id: string, ssid: string): string | null {
+    const problem = this.wifiProblem(id);
+    if (problem) return problem;
+    if (!this.store.device(id)?.wifi?.saved.includes(ssid)) return 'this device has no saved network by that name';
+    this.send(this.links.get(id)!.socket, { type: 'wifi.forget_network', ssid });
+    return null;
+  }
+
+  private wifiProblem(id: string): string | null {
+    if (!this.links.has(id)) return 'the device must be online to receive this';
+    // Older firmware doesn't report its networks, and doesn't know these messages either.
+    if (!this.store.device(id)?.wifi) return "this device's firmware can't do this: firmware 0.6.0 or later can";
+    return null;
   }
 
   sendConfig(device: Device): void {
@@ -227,6 +251,7 @@ export class DeviceHub {
     }
     device.firmware = hello.firmware;
     device.lastSeen = now;
+    setWifi(device, hello.wifi, now); // none from older firmware: its card shows no Wi-Fi part
     this.store.changed();
 
     if (device.status === 'pending') {
@@ -306,6 +331,14 @@ export class DeviceHub {
         link.playback?.abort.abort();
         link.playback?.done();
         return;
+      case 'wifi': {
+        const device = this.store.device(link.deviceId);
+        if (!device) return;
+        const { type: _type, ...report } = message;
+        setWifi(device, report, new Date().toISOString());
+        this.store.changed();
+        return;
+      }
       case 'hello':
       case 'state':
         return;
@@ -414,6 +447,11 @@ export class DeviceHub {
   private send(socket: WebSocket, message: BridgeMessage): void {
     if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
   }
+}
+
+function setWifi(device: Device, report: WifiReport | undefined, at: string): void {
+  if (report) device.wifi = { ...report, at };
+  else delete device.wifi;
 }
 
 function toBuffer(data: RawData): Buffer {

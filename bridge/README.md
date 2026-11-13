@@ -8,7 +8,8 @@ The small always-on server between a desk display, Grok Bot and speech services:
   webhook**, and the bot calls the bridge's **MCP tools** to speak (`desk_say`) and show its status
   (`desk_status`).
 - **Speech** goes to any OpenAI-compatible service: TTS (for example a self-hosted Kokoro server) and STT.
-- An **admin page** sets up devices, bots (webhook, avatar, voice) and speech, and shows the history with timings.
+- An **admin page** sets up devices (including their saved Wi-Fi networks, by name only), bots
+  (webhook, avatar, voice) and speech, and shows the history with timings.
 
 How the parts fit, and why: [../docs/spec.md](../docs/spec.md).
 
@@ -38,6 +39,10 @@ for speech, a fixed transcript), so nothing else is needed.
    `http://127.0.0.1:8790/webhook` with the key `test-key`.
 3. Admin page → **Bots**: add a bot and set its webhook URL and key to those two values.
 4. In a third terminal: `pnpm fake-device`. It appears under **Devices**: approve it and attach it to the bot.
+   It reports two saved Wi-Fi networks, as firmware 0.6.0 does, so its card has a Wi-Fi part:
+   **Wi-Fi setup**, **Forget** for each network and **Forget all networks** reach it and show in its
+   terminal. `--networks "A,B,C"` chooses the names, `--old-firmware` reports none (like firmware
+   before 0.6.0), and typing `signal -70` changes its signal.
 5. In the fake device, type `talk`. The fake bot receives the message, shows "working", and answers
    "You said: …", which the fake device plays and saves in `.fake/out/` (add `--play` to hear it through
    ffplay).
