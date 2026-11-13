@@ -4,6 +4,14 @@ Code in this repository that was copied from other open-source projects, with th
 Packages that are only installed as dependencies (through pnpm or the ESP-IDF component manager) carry
 their own licences and are not listed here.
 
+What the project publishes contains third-party software too, with its own notices, which ship with
+each release and on the installer page:
+
+- the firmware (ESP-IDF and what it builds in, LVGL, Espressif's components, cJSON):
+  [firmware/NOTICES.md](firmware/NOTICES.md), with the longer licence texts in
+  [firmware/licenses/](firmware/licenses/) and the C library's from ESP-IDF;
+- the installer page (ESP Web Tools and what it bundles): [installer/NOTICES.md](installer/NOTICES.md).
+
 ## shadcn/ui
 
 The admin page's components in `bridge/admin/src/components/ui/` and the Tailwind additions in
