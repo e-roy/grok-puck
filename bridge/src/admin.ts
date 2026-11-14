@@ -1,9 +1,13 @@
-// The admin page and its API, on their own port. Locally that port only answers this computer; behind
-// the tunnel every request must carry a valid Cloudflare Access login.
+// The admin page and its API, and the Listen page with its WebSocket, on their own port. Locally that
+// port only answers this computer; behind the tunnel every request must carry a valid Cloudflare
+// Access login.
+import type { IncomingMessage } from 'node:http';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import fastifyStatic from '@fastify/static';
+import websocket from '@fastify/websocket';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { JWTVerifyGetKey } from 'jose';
 import { z } from 'zod';
 import { accessVerifier } from './access.ts';
 import { wav } from './audio.ts';
@@ -17,7 +21,7 @@ import { hashKey, masked, newKey } from './keys.ts';
 import type { McpActivity } from './mcp.ts';
 import { DISPLAY_STATES } from './protocol.ts';
 import { checkTtsModels, listModels, makeTts } from './speech.ts';
-import { AVATAR_SHAPES, type Bot, type SpeechService, type Store } from './store.ts';
+import { AVATAR_SHAPES, type Bot, SPEAK_ON, type SpeechService, type Store } from './store.ts';
 
 export interface AdminContext {
   config: Config;
@@ -26,11 +30,14 @@ export interface AdminContext {
   desk: Desk;
   activity: McpActivity;
   publicPort: number;
+  /** Replaces Cloudflare Access's published signing keys (tests only). */
+  accessKeys?: JWTVerifyGetKey;
 }
 
 const LOOPBACK_IPS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 const DIST = fileURLToPath(new URL('../admin/dist/', import.meta.url));
+const LISTEN_PAGE = fileURLToPath(new URL('../admin/dist/listen.html', import.meta.url));
 
 const Color = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'a colour like #f59e0b');
 const BotFields = z.object({
@@ -48,6 +55,7 @@ const DevicePatch = z
     botId: z.string().max(64),
     volume: z.number().int().min(0).max(100),
     muted: z.boolean(),
+    speakOn: z.enum(SPEAK_ON),
     timings: z.object({ maxListenMs: z.number().int().min(5000).max(120_000) }).partial(),
   })
   .partial();
@@ -67,13 +75,22 @@ const SpeechPatch = z
 
 export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Promise<void> {
   const { config, store, hub, desk } = ctx;
-  const verify = config.adminAuth === 'cloudflare-access' ? accessVerifier(config.accessTeamDomain, config.accessAud) : null;
+  const verify =
+    config.adminAuth === 'cloudflare-access' ? accessVerifier(config.accessTeamDomain, config.accessAud, ctx.accessKeys) : null;
+  // When each request's login ends: a Listen page's socket is closed then, as its next request would be refused.
+  const loginEnds = new WeakMap<IncomingMessage, number>();
+
+  // Registered before the checks below: its own hook marks WebSocket requests, so that one refused
+  // here has its socket closed after the answer instead of left open.
+  await app.register(websocket, { options: { maxPayload: 64 * 1024 } });
 
   app.addHook('onRequest', async (req, reply) => {
     if (verify) {
       const header = req.headers['cf-access-jwt-assertion'];
       const token = typeof header === 'string' ? header : cookie(req, 'CF_Authorization');
-      if (!(await verify(token))) return deny(reply, 'a Cloudflare Access login is required');
+      const login = await verify(token);
+      if (!login) return deny(reply, 'a Cloudflare Access login is required');
+      if (login.expires !== undefined) loginEnds.set(req.raw, login.expires);
     } else {
       // Local mode: only this computer, and only under a local host name (stops DNS-rebinding pages).
       const host = (req.headers.host ?? '').replace(/:\d+$/, '');
@@ -187,10 +204,12 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     if (!body) return;
     if (body.botId && !store.bot(body.botId)) return bad(reply, 'Unknown bot.');
     const { timings, ...rest } = body;
+    const muting = body.muted === true && !device.muted;
     Object.assign(device, rest);
     if (timings) device.timings = { ...device.timings, ...timings };
     store.changed();
-    hub.sendConfig(device);
+    hub.sendConfig(device); // and tells its Listen pages
+    if (muting) hub.stopSpeech(device.id); // mute silences speech everywhere, the clip playing included
     return { ok: true };
   });
 
@@ -315,12 +334,39 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     }
   });
 
+  // The Listen page's WebSocket. Behind the same login as everything here, and, since a WebSocket
+  // isn't held to the browser's same-origin rules, only from a page on this very address: another
+  // site's page could otherwise open one with the owner's login (cross-site WebSocket hijacking).
+  app.get(
+    '/listen/ws',
+    {
+      websocket: true,
+      onRequest: async (req, reply) => {
+        if (!sameOrigin(req)) return deny(reply, "the Listen page's connection must come from the page itself");
+      },
+    },
+    (socket, req) => hub.acceptPage(socket, loginEnds.get(req.raw)),
+  );
+
+  const notBuilt = (reply: FastifyReply) =>
+    reply.type('text/plain').send('The admin page is not built yet. In bridge/, run: pnpm build:admin');
   if (fs.existsSync(DIST)) {
     await app.register(fastifyStatic, { root: DIST });
   } else {
-    app.get('/', async (_req, reply) =>
-      reply.type('text/plain').send('The admin page is not built yet. In bridge/, run: pnpm build:admin'),
-    );
+    app.get('/', async (_req, reply) => notBuilt(reply));
+  }
+  app.get('/listen', async (_req, reply) => (fs.existsSync(LISTEN_PAGE) ? reply.sendFile('listen.html', DIST) : notBuilt(reply)));
+}
+
+/** The request's Origin is this server's own address, as the browser reached it (scheme aside). */
+function sameOrigin(req: FastifyRequest): boolean {
+  const origin = req.headers.origin;
+  const host = req.headers.host;
+  if (!origin || !host) return false;
+  try {
+    return new URL(origin).host === host.toLowerCase();
+  } catch {
+    return false;
   }
 }
 
@@ -335,6 +381,8 @@ function overview(ctx: AdminContext) {
       online: hub.isOnline(d.id),
       waiting: hub.isWaiting(d.id),
       showing: hub.shown(d.id) ?? null,
+      speaking: hub.speaking(d.id), // where its speech plays right now: device, page, both or null
+      listen: hub.listenSummary(d.id), // its Listen pages: how many are open, whether one is ready
     })),
     bots: s.bots.map((b) => ({ ...b, webhookKey: masked(b.webhookKey), webhookKeySet: Boolean(b.webhookKey) })),
     speech: { tts: service(s.speech.tts), stt: { ...service(s.speech.stt), language: s.speech.stt.language, mockText: s.speech.stt.mockText } },

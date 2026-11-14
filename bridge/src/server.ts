@@ -2,6 +2,7 @@
 import type { AddressInfo } from 'node:net';
 import websocket from '@fastify/websocket';
 import Fastify from 'fastify';
+import type { JWTVerifyGetKey } from 'jose';
 import { registerAdmin } from './admin.ts';
 import type { Config } from './config.ts';
 import { Desk } from './desk.ts';
@@ -16,7 +17,12 @@ export interface Bridge {
   close(): Promise<void>;
 }
 
-export async function startBridge(config: Config): Promise<Bridge> {
+export interface BridgeOptions {
+  /** Replaces Cloudflare Access's published signing keys (tests only). */
+  accessKeys?: JWTVerifyGetKey;
+}
+
+export async function startBridge(config: Config, options: BridgeOptions = {}): Promise<Bridge> {
   const app = Fastify({ logger: { level: config.logLevel }, bodyLimit: 1_048_576, forceCloseConnections: true });
   const store = new Store(config.dataDir);
   // The hub reports to the desk, and the desk drives the hub.
@@ -25,6 +31,7 @@ export async function startBridge(config: Config): Promise<Bridge> {
     utterance: (device, pcm) => void desk.onUtterance(device, pcm),
     connected: (device) => desk.onConnected(device),
     quiet: (device) => desk.onQuiet(device),
+    pageReady: (device) => desk.onPageReady(device),
   });
   desk = new Desk(store, hub, app.log);
   const activity = new McpActivity();
@@ -37,7 +44,7 @@ export async function startBridge(config: Config): Promise<Bridge> {
   const publicPort = (app.server.address() as AddressInfo).port;
 
   const admin = Fastify({ loggerInstance: app.log, forceCloseConnections: true });
-  await registerAdmin(admin, { config, store, hub, desk, activity, publicPort });
+  await registerAdmin(admin, { config, store, hub, desk, activity, publicPort, accessKeys: options.accessKeys });
   await admin.listen({ host: config.adminHost, port: config.adminPort });
   const adminPort = (admin.server.address() as AddressInfo).port;
 

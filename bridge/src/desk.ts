@@ -2,11 +2,11 @@
 // sends back. The hub moves the bytes; this decides what goes where.
 import { randomUUID } from 'node:crypto';
 import type { FastifyBaseLogger } from 'fastify';
-import { ERROR_TONE, MIC_RATE, NO_ANSWER_TONE, SPEAKER_RATE, tones, wav } from './audio.ts';
+import { ERROR_TONE, MIC_RATE, NO_ANSWER_TONE, SPEAKER_RATE, type Tone, tones, wav } from './audio.ts';
 import { Clip } from './clip.ts';
 import { errorText } from './errors.ts';
 import { postWebhook, type VoiceMessage } from './grokbot.ts';
-import type { DeviceHub } from './hub.ts';
+import type { DeviceHub, Place } from './hub.ts';
 import { RateLimit } from './ratelimit.ts';
 import { speakable } from './speakable.ts';
 import { makeStt, makeTts } from './speech.ts';
@@ -209,9 +209,12 @@ export class Desk {
   /** A device (re)connected: show the right state and speak what it missed. */
   onConnected(device: Device): void {
     this.showResting(device.id);
-    const missed = this.offline.get(device.id) ?? [];
-    this.offline.delete(device.id);
-    for (const item of missed) this.speak([device], this.store.bot(item.botId), item.text);
+    this.speakMissed(device);
+  }
+
+  /** A Listen page now plays for this device: what it missed while it had nowhere to speak plays there. */
+  onPageReady(device: Device): void {
+    this.speakMissed(device);
   }
 
   /** Nothing is playing on the device any more. */
@@ -229,37 +232,60 @@ export class Desk {
     if (!request) for (const timer of this.statusTimers.values()) clearTimeout(timer);
   }
 
+  /**
+   * Speaks on each device where its Speak on setting says (the device, its Listen page or both), and
+   * keeps it for a device with nowhere to speak now. Says where, for the bot and the history.
+   */
   private speak(devices: Device[], bot: Bot | undefined, spoken: string): string {
-    const online = devices.filter((d) => this.hub.isOnline(d.id) && !d.muted);
-    const away = devices.filter((d) => !this.hub.isOnline(d.id) && !d.muted);
     const muted = devices.filter((d) => d.muted);
-    for (const device of away) {
-      const queue = this.offline.get(device.id) ?? [];
-      queue.push({ text: spoken, botId: bot?.id ?? device.botId });
-      this.offline.set(device.id, queue.slice(-OFFLINE_QUEUE));
-    }
-    if (online.length) {
+    const routed = devices.filter((d) => !d.muted).map((device) => ({ device, place: this.hub.route(device.id) }));
+    const away = routed.filter((r) => r.place === null).map((r) => r.device);
+    const playing = routed.filter((r): r is { device: Device; place: Place } => r.place !== null);
+    for (const device of away) this.keep(device, spoken, bot);
+    if (playing.length) {
       const clip = this.synthesize(spoken, bot);
       const at = Date.now();
       clip.settled.catch((err: unknown) => {
-        for (const device of online) {
+        for (const { device } of playing) {
           // Not spoken after all, so the same text may be tried again at once.
           if (this.lastSpoken.get(device.id)?.at === at) this.lastSpoken.delete(device.id);
           this.fail(device, bot, `text-to-speech failed: ${errorText(err)}`, spoken);
         }
       });
-      for (const device of online) {
+      for (const { device, place } of playing) {
         this.lastSpoken.set(device.id, { text: spoken, at });
-        void this.hub.play(device.id, clip, 'speech');
+        void this.hub.play(device.id, clip, 'speech', place).then((result) => {
+          // It went offline and its page closed while the clip waited: kept for later, as if it had been offline.
+          if (result === 'offline') this.keep(device, spoken, bot);
+        });
       }
     }
+    const on = (place: Place) => playing.filter((r) => r.place === place).map((r) => r.device);
+    const [here, page, both] = [on('device'), on('page'), on('both')];
+    const later = away.some((d) => d.speakOn !== 'device') ? ' or a Listen page is ready' : '';
     return [
-      online.length ? `Speaking on ${names(online)}.` : '',
-      away.length ? `Saved for ${names(away)} (offline); spoken when it reconnects.` : '',
+      here.length ? `Speaking on ${names(here)}.` : '',
+      page.length ? `Speaking on the Listen page for ${names(page)}.` : '',
+      both.length ? `Speaking on ${names(both)} and ${both.length > 1 ? 'their' : 'its'} Listen page.` : '',
+      away.length ? `Saved for ${names(away)} (offline); spoken when ${away.length > 1 ? 'they reconnect' : 'it reconnects'}${later}.` : '',
       muted.length ? `${names(muted)} ${muted.length > 1 ? 'are' : 'is'} muted.` : '',
     ]
       .filter(Boolean)
       .join(' ');
+  }
+
+  /** Keeps speech for a device that can't speak now (offline, and no Listen page plays for it). */
+  private keep(device: Device, spoken: string, bot: Bot | undefined): void {
+    const queue = this.offline.get(device.id) ?? [];
+    queue.push({ text: spoken, botId: bot?.id ?? device.botId });
+    this.offline.set(device.id, queue.slice(-OFFLINE_QUEUE));
+  }
+
+  private speakMissed(device: Device): void {
+    const missed = this.offline.get(device.id) ?? [];
+    if (!missed.length || !this.hub.route(device.id)) return;
+    this.offline.delete(device.id);
+    for (const item of missed) this.speak([device], this.store.bot(item.botId), item.text);
   }
 
   /** Why these devices can't speak for this bot, if they can't. */
@@ -339,9 +365,17 @@ export class Desk {
       botId: request.botId,
       detail: `no reply within ${REPLY_TIMEOUT_MS / 60_000} minutes (request ${request.id}); a later reply is still spoken`,
     });
-    if (!this.hub.isOnline(request.deviceId)) return;
-    this.hub.show(request.deviceId, 'error');
-    void this.hub.play(request.deviceId, Clip.of(tones(NO_ANSWER_TONE), SPEAKER_RATE), 'tone');
+    if (request.deviceId) this.alarm(request.deviceId, NO_ANSWER_TONE);
+  }
+
+  /** The error face, and a tone where the device's speech plays; then back to rest when the tone ends. */
+  private alarm(deviceId: string, tone: Tone[]): void {
+    if (!this.store.device(deviceId)) return;
+    this.hub.show(deviceId, 'error');
+    void this.hub.play(deviceId, Clip.of(tones(tone), SPEAKER_RATE), 'tone').then((result) => {
+      // A tone's end brings the device back to rest; with no tone (muted, or nowhere to play it), a timer does.
+      if (result === 'muted' || result === 'offline') setTimeout(() => this.showResting(deviceId), 3000).unref();
+    });
   }
 
   private hasOpenRequest(deviceId: string): boolean {
@@ -383,12 +417,7 @@ export class Desk {
   private fail(device: Device | undefined, bot: Bot | undefined, detail: string, text?: string): Outcome {
     this.log.warn({ device: device?.id, bot: bot?.name }, detail);
     this.store.addHistory({ kind: 'error', ok: false, deviceId: device?.id, botId: bot?.id, text, detail });
-    if (device && this.hub.isOnline(device.id)) {
-      this.hub.show(device.id, 'error');
-      // The tone's end brings the device back to rest; a muted device gets there on a timer.
-      if (device.muted) setTimeout(() => this.showResting(device.id), 3000);
-      else void this.hub.play(device.id, Clip.of(tones(ERROR_TONE), SPEAKER_RATE), 'tone');
-    }
+    if (device) this.alarm(device.id, ERROR_TONE);
     return { ok: false, message: detail.charAt(0).toUpperCase() + detail.slice(1) + '.' };
   }
 }
