@@ -34,6 +34,10 @@ export interface DeviceWifi {
   at: string; // when it reported this
 }
 
+/** Where a device's speech plays: on the device, on a Listen page in a browser, or both. */
+export const SPEAK_ON = ['device', 'page', 'both'] as const;
+export type SpeakOn = (typeof SPEAK_ON)[number];
+
 export interface Device {
   id: string;
   name: string;
@@ -41,9 +45,11 @@ export interface Device {
   keyHash: string;
   botId: string;
   volume: number; // 0..100
-  muted: boolean;
+  muted: boolean; // no speech or tones anywhere, Listen pages included
+  speakOn: SpeakOn; // with 'page' and no Listen page ready, the device speaks
   timings: Timings;
   firmware: string;
+  features: string[]; // what its firmware can do beyond 0.6.0, from its hello ("speaking": firmware 0.6.1)
   firstSeen: string;
   lastSeen: string;
   wifi?: DeviceWifi; // absent for firmware that doesn't report it
@@ -166,9 +172,12 @@ function load(file: string): State {
   return {
     ...fresh,
     ...saved,
-    // Keep only the current timing fields (the countdown and silence settings left with hold-to-talk).
+    // Keep only the current timing fields (the countdown and silence settings left with hold-to-talk),
+    // and fill in what older data files don't have.
     devices: (saved.devices ?? []).map((d) => ({
       ...d,
+      speakOn: SPEAK_ON.includes(d.speakOn) ? d.speakOn : 'device',
+      features: Array.isArray(d.features) ? d.features : [],
       timings: { maxListenMs: d.timings?.maxListenMs ?? DEFAULT_TIMINGS.maxListenMs },
     })),
     speech: {

@@ -52,6 +52,7 @@ static uint32_t color = 0xf59e0b;
 static atomic_int state = FACE_IDLE;
 static int64_t state_since_ms;
 static atomic_int level_milli;  // 0..1000
+static atomic_bool steady;      // speaking without audio here: a steady pulse instead of the level
 static int64_t next_blink_ms;
 static int64_t poke_ms = INT64_MIN / 2;
 
@@ -192,8 +193,9 @@ static void tick(lv_timer_t *timer) {
     const face_state_t s = (face_state_t)atomic_load(&state);
     const int64_t since = t - state_since_ms;
     // The audio level (0..1), smoothed so the ring swells quickly with a voice and fades more slowly.
+    // Speech playing elsewhere has no level here: a steady pulse, about one a second, stands in for it.
     static float lv;
-    const float target = level();
+    const float target = s == FACE_SPEAKING && atomic_load(&steady) ? 0.35f + 0.3f * sinf(t * (float)(2 * M_PI) / 900.0f) : level();
     lv += (target - lv) * (target > lv ? 0.5f : 0.12f);
 
     float gx = 0, gy = 0, open = blink(t), wide = 1;
@@ -407,6 +409,8 @@ face_shape_t face_shape_from_name(const char *name) {
 }
 
 void face_set_level(float value) { atomic_store(&level_milli, (int)(clampf(value, 0, 1) * 1000)); }
+
+void face_set_steady(bool on) { atomic_store(&steady, on); }
 
 const char *face_state_name(face_state_t s) { return s < FACE_STATE_COUNT ? STATE_NAMES[s] : "?"; }
 

@@ -73,6 +73,10 @@ static void send_hello(void) {
     cJSON_AddStringToObject(m, "device_id", device_id);
     cJSON_AddStringToObject(m, "firmware", firmware);
     if (key[0]) cJSON_AddStringToObject(m, "key", key);
+    // What this firmware can do beyond 0.6.0: show "speaking" on request while its speech plays on a
+    // Listen page. A bridge that doesn't know the field ignores it.
+    cJSON *features = cJSON_AddArrayToObject(m, "features");
+    cJSON_AddItemToArray(features, cJSON_CreateString("speaking"));
     xSemaphoreTake(wifi_lock, portMAX_DELAY);
     if (have_wifi) add_wifi(cJSON_AddObjectToObject(m, "wifi"), &wifi);
     xSemaphoreGive(wifi_lock);

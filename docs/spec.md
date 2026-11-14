@@ -1,9 +1,10 @@
 # Spec: Grok Bot desk display
 
 **Status: v0.1 (24 Oct 2026) is mostly built; §8 shows each milestone's status, and the README says
-what works.** Agreed on 12 Nov 2026 and not built yet: **xAI as a speech service** (§5.6.1) and the
-**Listen page** for hearing the bot on a computer (§5.10). New (13 Nov 2026): **firmware releases and
-the web installer** (§4.7, milestone M9), built, with the first release still to come. Items marked
+what works.** Agreed on 12 Nov 2026 and not built yet: **xAI as a speech service** (§5.6.1). Built on
+13 Nov 2026: the **Listen page** for hearing the bot on a computer (§5.10, milestone M7, with firmware
+0.6.1). **Firmware releases and the web installer** (§4.7, milestone M9) are built, and v0.6.0 was
+released on 13 Nov 2026. Items marked
 *(proposal)* are suggestions you can change; items marked *(to test)* depend on how Grok Bot actually
 behaves, and get checked at milestone M2.
 
@@ -32,7 +33,7 @@ into text and back. xAI's speech API can be one of them (§5.6.1); no other xAI 
 - Device: avatar and states, hold-to-talk, spoken replies, setup through its own
   Wi-Fi hotspot, approval in the admin page.
 - Bridge: device link, STT, the bot's routine webhook, an MCP server for the bot, TTS, an admin web
-  page.
+  page, and a Listen page that plays the bot's speech in a browser tab (§5.10).
 - Grok Bot setup texts: the MCP server entry, a skill with standing instructions, a routine with a webhook.
 - Hardware: BOM, case and stand (STL + OpenSCAD source).
 
@@ -76,7 +77,8 @@ configuration.
    The device animates.
 2. When it has written its reply, it calls `desk_say(text)` with the same text.
 3. The bridge cleans the text for speech (§5.6), gets audio from TTS, and streams it to the device,
-   which plays it with the "speaking" animation.
+   which plays it with the "speaking" animation (or, as its Speak on setting says, to a Listen page
+   in a browser tab: §5.10).
 
 **B. You answer by voice**
 1. Hold the screen → you speak → let go. The device streams the audio to the bridge while you hold.
@@ -122,7 +124,7 @@ blob, teardrop, cloud, hex, squircle, circle *(to confirm against the app before
 | thinking | bridge (after a voice message) or the bot | eyes look up, dots orbit the rim |
 | working | the bot (`desk_status`) | faster orbit, eyes darting |
 | waiting | the bot needs your approval | eyes on you, soft attention pulse |
-| speaking | audio playing (or playing on the Listen page, §5.10) | body pulses with the audio level (a steady pulse when the audio plays elsewhere) |
+| speaking | audio playing (or playing on the Listen page, §5.10: firmware 0.6.1) | body pulses with the audio level (a steady pulse when the audio plays elsewhere) |
 | error | STT/TTS/webhook failure or no answer in 3 min | short shake, red tint, then idle |
 | muted | the admin page | small "muted" mark, no audio |
 
@@ -137,7 +139,7 @@ is no countdown and no silence timeout.
 |---|---|---|
 | idle / dimmed | listen while held, send on letting go | wake; a small poke reaction |
 | thinking / working / waiting | listen (a follow-up message) | small wiggle |
-| speaking | stop speaking and listen | stop speaking |
+| speaking (here, or on a Listen page) | stop speaking and listen | stop speaking, wherever it plays |
 
 - A press counts as a hold after **0.3 s**; a shorter touch is a tap. Recording starts at the touch
   itself, so a first word spoken while the hold is being counted isn't cut off; a tap sends nothing.
@@ -291,7 +293,7 @@ ESP-IDF as before.
 | `/device` (WebSocket) | devices | device key (pending devices: hello only) |
 | `/mcp` | Grok Bot | `Authorization: Bearer <MCP key>` |
 | admin page + its API | you | Cloudflare Access, plus the bridge verifies Access's signed token |
-| Listen page + `/listen/ws` *(proposal, §5.10)* | you, on a computer or phone | as the admin page (same port, same checks) |
+| Listen page (`/listen`) + `/listen/ws` (§5.10) | you, on a computer or phone | as the admin page (same port, same checks); the WebSocket's `Origin` must be the page's own address |
 | `/healthz` | monitoring | none, reports nothing private |
 
 ### 5.3 Device protocol (implemented in `bridge/src/protocol.ts`)
@@ -299,7 +301,8 @@ One WebSocket per device: JSON control messages plus binary audio frames.
 - Device → bridge:
   - `hello` (device id, firmware version, its key once approved, and from firmware 0.6.0 its Wi-Fi:
     `"wifi": {"saved": ["Home", "Phone"], "current": "Home", "rssi": -58, "setup": false}`, network
-    names only);
+    names only; from firmware 0.6.1, what it can do beyond 0.6.0: `"features": ["speaking"]`, it can
+    show "speaking" without playing audio. An older bridge ignores the field);
   - `listen.start`, then microphone frames (16 kHz PCM), then `listen.end` or `listen.cancel`;
   - `played` (a clip finished or was stopped);
   - `stop` (the owner touched the screen to stop speech);
@@ -311,7 +314,9 @@ One WebSocket per device: JSON control messages plus binary audio frames.
   - `pending` (waiting for approval);
   - `welcome` (the device key, on approval);
   - `config` (name, bot avatar, volume, mute, longest message);
-  - `show` (state to display);
+  - `show` (state to display: idle, thinking, working, waiting, error; and `speaking` while a Listen
+    page plays its speech, only to devices whose hello lists `speaking`: firmware 0.6.0 logs a state
+    it doesn't know and keeps what it shows);
   - `play.start`, then audio frames (24 kHz PCM, sent about 1 s ahead of real time), then `play.end`;
   - `stop`;
   - `wifi.setup` (from the admin page: open the setup network for 10 minutes, staying online);
@@ -401,8 +406,10 @@ Its endpoints aren't OpenAI's, so it is a service type of its own (`xai`, next t
 ### 5.7 Routing, queueing, limits
 - A reply goes to the device that asked. `desk_say` and `desk_status` go to all devices attached to
   that bot.
-- Device offline: spoken messages wait in a small queue *(proposal: 5 per device)*; states are not
-  queued.
+- Each device's **Speak on** setting says where its speech plays: on the device, on a Listen page,
+  or both (§5.10, with its table). Clips play one at a time per device, in order, wherever they play.
+- Device offline: spoken messages wait in a small queue *(proposal: 5 per device)*, unless a Listen
+  page plays them (§5.10); states are not queued.
 - No reply within 3 minutes of a voice message: error state and a short tone. A late reply is still spoken.
 - Caps against runaway loops *(proposal)*: 120 `desk_say` calls per hour, 600 status calls per hour.
 
@@ -424,10 +431,12 @@ item links to where it is fixed; when all are done it shrinks to "Ready".
 **Devices.** A highlighted card for a new device waiting for approval (name, bot, Approve). For each
 approved device a card with:
 - the bot's avatar showing what the device shows (idle, thinking…), online or last seen, firmware;
-- name (edited in place), bot, volume (slider), mute (switch), longest message;
-- **Speak on** *(not built yet, §5.10)*: the device, the Listen page or both, and whether a Listen page is
-  ready for it, with a link to open one;
-- **Try it:** a sentence to speak, with the last few used; showing a state is in a small Test menu;
+- name (edited in place), bot, volume on the device (slider), mute (switch), longest message;
+- **Speak on** (§5.10): the device, the Listen page or both, and whether a Listen page is open or ready
+  for it, with a link to open one (`/listen?device=<id>`, in a new tab). A device whose firmware can't
+  show "speaking" without audio (before 0.6.1) says so;
+- **Try it:** a sentence to speak, where Speak on sends it, with the last few used; showing a state is
+  in a small Test menu;
 - **Wi-Fi:** its saved networks, Forget for each, and Wi-Fi setup (§4.6);
 - at the bottom, set apart: **Forget all networks** and **Forget**, each confirmed in a dialog that
   says what will happen.
@@ -464,15 +473,20 @@ both themes. Checked with Chrome DevTools at 1280 and 390 px wide, light and dar
 errors.
 
 The page's redesign didn't change the admin API: what it shows differently is worked out in the page.
-New endpoints come only with new features, like Wi-Fi setup and Forget for one network (§4.6).
+New endpoints come only with new features, like Wi-Fi setup and Forget for one network (§4.6). Speak
+on is a device field (`PATCH /api/devices/<id>` with `{"speakOn": "device" | "page" | "both"}`), and
+the overview gives each device `speakOn`, `features`, `speaking` (where its speech plays right now)
+and `listen` (`{"open": 1, "ready": true}`: its Listen pages).
 
 ### 5.9 Security
 - Random 256-bit keys. Secrets are entered once and never shown again in full, and never logged.
 - Nothing is reachable from the internet except through the tunnel; no home ports are opened.
 - Transcripts and bot text are treated as data, never as commands to the bridge.
+- The Listen page's WebSocket is refused unless its `Origin` is the page's own address, since the
+  browser's same-origin rules don't cover WebSockets (§5.10).
 - `.env`, the data volume, backups and `private/` are git-ignored from the first commit.
 
-### 5.10 The Listen page: hearing the bot on a computer *(agreed 12 Nov 2026, not built)*
+### 5.10 The Listen page: hearing the bot on a computer *(built 13 Nov 2026, milestone M7)*
 
 For when the bot should be heard through a computer, with headphones or better speakers, rather than
 from the device. The Grok Bot app's documentation describes no reading aloud of typed replies, so this
@@ -480,32 +494,77 @@ is also the way to hear them on headphones.
 
 - **What it is:** a page the bridge serves next to the admin page (`/listen`, same hostname, same
   Cloudflare Access login). Open it in a tab on a computer, or on a phone, and it plays the bot's
-  speech. It shows the bot's avatar and state, drawn as on the device (the admin page already draws
-  that preview), and a **Stop** button.
+  speech. It shows the bot's avatar and state as the device shows them (the admin page's preview, with
+  a "speaking" state), a **Stop** button, and a link back to the admin page. It is a second entry of
+  the admin page's build (`bridge/admin/listen.html`), with the same theme and components.
 - **Where speech goes:** a setting per device in the admin page, **Speak on**: *the device* (the
   default), *the Listen page*, or *both*. When it is set to the Listen page but no page is ready, the
-  device speaks, so nothing is lost.
-- **Which device:** the page plays for one device, picked on the page and remembered in that browser.
-  With one device there is nothing to pick. If several pages play for the same device, the one started
-  last plays and the others show "playing elsewhere".
+  device speaks, so nothing is lost. Where each clip plays is decided when it starts, so a change (Speak
+  on, a page started or closed, the device going offline) applies from the next clip; Stop and Mute
+  are the exceptions, and end the clip playing.
+
+  | Speak on | A Listen page ready | The device | Plays on |
+  |---|---|---|---|
+  | the device | either | online | the device |
+  | the device | either | offline | nowhere yet: speech waits for the device (up to 5 clips, as in §5.7) |
+  | the Listen page | yes | online or offline | the page; a device online shows "speaking" |
+  | the Listen page | no | online | the device |
+  | the Listen page | no | offline | nowhere yet: speech waits for the device or a ready page, whichever comes first |
+  | both | yes | online | the device and the page, in step |
+  | both | yes | offline | the page (nothing is kept for the device: it was heard) |
+  | both | no | online | the device |
+  | both | no | offline | nowhere yet: as for the Listen page |
+
+  Muted: nowhere, whatever the rest. A clip with two places is **played** once both have played it
+  (each answers `played`, or the bridge stops waiting 3 s after its length); the next clip waits for
+  both. It is **stopped** when the owner stops it in either place, and then it stops in both. A place
+  that drops out (the page closed, the device went offline) stops there and the other carries on.
+  History says where each clip was sent ("Speaking on the Listen page for Desk."), and adds a line in
+  the rare case that this changed while the clip waited for the one before.
+- **Which device:** the page plays for one device, picked on the page (or given in its address,
+  `/listen?device=<id>`, which the admin page's link uses) and remembered in that browser. With one
+  device there is nothing to pick. If several pages are ready for the same device, the one started last
+  plays and the others show "playing elsewhere" with **Play here**; when it closes, the one started
+  before it plays again. A page that only reconnected doesn't take over from one started since.
 - **Starting sound:** browsers play sound only after a click on the page, so it opens with **Start
   listening**, and doesn't count as ready until that click. After it, speech plays as long as the tab
-  is open, in the background too. Phones may pause a page when the screen locks, so on a phone it is
-  best effort.
+  is open, in the background too: each piece of audio is scheduled on the Web Audio clock as it
+  arrives, with no timers in the way (browsers slow timers in background tabs, not the audio clock).
+  If the browser pauses the page's sound, the page tells the bridge it isn't ready, so the device
+  speaks. Phones may pause a page when the screen locks, so on a phone it is best effort; a browser that
+  puts inactive tabs to sleep (Chrome's Memory Saver, Edge's sleeping tabs) should be told to keep the
+  admin hostname active.
 - **How the audio gets there:** a WebSocket on the admin port (`/listen/ws`, checked like the admin
-  API) carries the same messages the device gets: `play.start`, 24 kHz PCM frames, `play.end` and
-  `stop`. The page answers `played` and `stop`, and plays the audio with the Web Audio API. The error
-  tone goes the same way.
+  API, below) carries the messages the device gets: `show`, `play.start`, 24 kHz PCM frames,
+  `play.end` and `stop`. The page answers `played` and `stop`, and plays the audio with the Web
+  Audio API. The error tone goes the same way. The messages (`bridge/src/protocol.ts`):
+  - page → bridge: `listen` (`{"type":"listen","device":"<id>","ready":false}`: which device it
+    plays for; `ready: true` after a reconnect, when Start listening was pressed before), `start`
+    (Start listening or Play here), `played` (`{"type":"played","id":"<clip>"}`) and `stop`;
+  - bridge → page: `status` (the devices to pick from, each with its bot, online, muted, Speak on and
+    whether a page is ready for it; the device this page plays for; and its role: `off`, `here` or
+    `elsewhere`), `show` (what the device shows, or `speaking` while the desk speaks anywhere), the
+    audio messages above, and `error`.
+
+  The page reconnects by itself (after 1, 2, 4, 8, then every 15 s) and says when it can't reach the
+  bridge.
+- **Checks:** `/listen` and `/listen/ws` pass the admin page's checks (this computer only, or a
+  Cloudflare Access login checked again by the bridge). A WebSocket isn't held to the browser's
+  same-origin rules, so the bridge also refuses an upgrade whose `Origin` isn't the page's own address
+  (cross-site WebSocket hijacking). Behind Access, the socket closes when the login ends, as the next
+  request would be refused; the page then asks to reload.
 - **The device meanwhile:** it still shows thinking, working and waiting. While the page plays, the
-  bridge shows "speaking" on the device, then "idle" when the page reports the clip done. Speaking
-  without audio is a steady pulse, which takes a small firmware change. *(Later: the voice level sent
-  along, so the pulse follows the voice.)*
+  bridge shows "speaking" on the device, then its resting state when the page reports the clip done.
+  Speaking without audio is a steady pulse (firmware 0.6.1). The bridge asks only devices whose hello
+  lists the `speaking` feature (§5.3); older firmware keeps showing its resting state meanwhile, and a
+  tap on it doesn't stop the page (holding it does). *(Later: the voice level sent along, so the pulse
+  follows the voice.)*
 - **Stopping:** a tap on the device, or holding it to talk, stops speech wherever it plays. So does
-  the page's Stop button.
-- **Mute** silences speech everywhere. The device's volume slider sets the device only; the page uses
-  the computer's volume.
-- **Device offline:** with Speak on set to the Listen page, the page still plays while the device is
-  offline.
+  the page's Stop button, from any page for that device.
+- **Mute** silences speech everywhere, and switching it on ends the clip playing. The device's volume
+  slider sets the device only; the page uses the computer's volume.
+- **Device offline:** with Speak on set to the Listen page (or both), the page still plays while the
+  device is offline.
 - **Later, not in this step:** hold-to-talk on the page with the computer's microphone (hold a button
   or the space bar), through the same STT and webhook. With it, the page would work as a desk without
   the device, for example on a laptop when travelling.
@@ -570,9 +629,9 @@ measurements (context, reliability, timing) are still to be taken.
 | M5 | Listening: hold-to-talk, voice level, STT, full voice turn | hold, speak, let go, the bot acts, the reply is spoken | done |
 | M6 | Polish: avatar shapes matched to the app, dimming, mute, errors, docs for the public release | ready to make public | partly: the docs for the public release are done and the repo is public; errors are done (a failed step or no answer shows the error face and plays a tone); mute works in the bridge (no speech or tones reach a muted device), but the face has no "muted" mark yet. Screen dimming and matching the avatar shapes to the app are still open |
 | R | When the code is mature: move personal and research files to `private/`, clean up `CLAUDE.md` and the docs, create the repo | first commit contains nothing personal | done (9 Nov 2026) |
-| M7 | Listen page (§5.10) | with Speak on set to the Listen page, a typed chat reply plays in the browser tab while the device shows "speaking"; a tap on the device stops it; with no page ready, the device speaks | planned, not built |
+| M7 | Listen page (§5.10) | with Speak on set to the Listen page, a typed chat reply plays in the browser tab while the device shows "speaking"; a tap on the device stops it; with no page ready, the device speaks | built (bridge, Listen page, firmware 0.6.1): tested with the fake device and the fake Grok Bot, in Chrome (a background tab too), and on the board with a local bridge (the steady pulse while the page plays, a tap or a hold stops the page, both places together). v0.6.1 is to be released, and a typed reply through the real Grok Bot to be checked with it |
 | M8 | xAI as a speech service (§5.6.1) | the device speaks with an xAI voice, a voice message is transcribed by xAI, and the tests pass against a fake xAI server | planned, not built |
-| M9 | Firmware releases and the web installer (§4.7) | "Release firmware" publishes `v<version>` with the four parts, the manifest and the notices; the installer page on GitHub Pages installs it from the browser and the device keeps its settings; **Erase device** gives a clean start | built and tested on a board from a local package; the first release (v0.6.0) is still to come |
+| M9 | Firmware releases and the web installer (§4.7) | "Release firmware" publishes `v<version>` with the four parts, the manifest and the notices; the installer page on GitHub Pages installs it from the browser and the device keeps its settings; **Erase device** gives a clean start | released: v0.6.0 on 13 Nov 2026 |
 
 M1 and M2 came first so that any surprise on the Grok Bot side showed up before the firmware was far
 along. M7, M8 and M9 don't depend on each other, so any can come first.
@@ -591,7 +650,8 @@ along. M7, M8 and M9 don't depend on each other, so any can come first.
 | The bot may call the desk tools during the app's voice chat, so the device talks over the call | test in M2; mute the device during calls |
 | xAI's TTS docs show two answer formats (JSON with base64 audio, and a plain audio body) | accept both; check with a real key in M8 |
 | xAI speech is billed per use, outside the Grok Bot plan | opt-in; the prices are stated in the admin page's Speech card and here |
-| Browsers block sound until the page is clicked; phones may pause a page | the Listen page counts as ready only after a click; otherwise the device speaks |
+| Browsers block sound until the page is clicked; phones may pause a page | the Listen page counts as ready only after a click, and not while the browser has paused its sound; otherwise the device speaks |
+| A browser may put a Listen tab left in the background to sleep (Chrome's Memory Saver, Edge's sleeping tabs) | the setup guide says to keep the admin hostname active; a page that comes back asks for Start listening again, and the device speaks meanwhile |
 | An install could wipe the device's settings | the installer writes the four parts separately and never NVS; the packaging script refuses any build that would reach into another partition, in every pull request and every release |
 | Not every browser can install (Web Serial) | the installer offers Install only where it works and says which browser to use otherwise; tested in Chrome (Edge shares its engine); Firefox 151+ is not tested yet |
 | A published release built from the wrong files | releases are built only by the release workflow, from `main`, in the pinned ESP-IDF container; a version is never released twice |

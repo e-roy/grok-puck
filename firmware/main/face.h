@@ -3,6 +3,7 @@
 // from LVGL callbacks).
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "lvgl.h"
@@ -35,6 +36,9 @@ void face_set_state(face_state_t state);
 face_state_t face_get_state(void);  // safe from any task
 // Microphone or speaker level, 0..1. Safe from any task.
 void face_set_level(float level);
+// While speaking: true when the speech plays elsewhere (a Listen page), so there is no level to
+// follow and the ring pulses steadily instead. Safe from any task.
+void face_set_steady(bool steady);
 
 face_shape_t face_get_shape(void);
 uint32_t face_get_color(void);

@@ -1,6 +1,6 @@
 // A preview of a bot's avatar: its shape and colour with two eyes, optionally showing the state its
-// device shows (idle breathes, thinking has dots orbiting, offline closes its eyes…). An approximation
-// for choosing settings; the device draws its own.
+// device shows (idle breathes, thinking has dots orbiting, speaking pulses, offline closes its eyes…).
+// An approximation for choosing settings and for the Listen page; the device draws its own.
 import type { CSSProperties } from 'react';
 import type { Avatar as AvatarSettings } from '@/api.ts';
 
@@ -56,13 +56,14 @@ function Body({ shape, color }: AvatarSettings) {
   }
 }
 
-export type AvatarState = 'idle' | 'thinking' | 'working' | 'waiting' | 'error' | 'offline';
+export type AvatarState = 'idle' | 'thinking' | 'working' | 'waiting' | 'speaking' | 'error' | 'offline';
 
 const LABELS: Record<AvatarState, string> = {
   idle: 'idle',
   thinking: 'thinking',
   working: 'working',
   waiting: 'waiting for you',
+  speaking: 'speaking',
   error: 'error',
   offline: 'offline',
 };
@@ -70,7 +71,7 @@ const LABELS: Record<AvatarState, string> = {
 export function Avatar({ avatar, size = 96, state }: { avatar: AvatarSettings; size?: number; state?: AvatarState }) {
   const eyes = luminance(avatar.color) > 0.6 ? '#1f2937' : '#ffffff';
   const offline = state === 'offline';
-  const look = state === 'thinking' ? -5 : 0; // thinking looks up
+  const look = state === 'thinking' ? -5 : state === 'speaking' ? -2 : 0; // thinking looks up
   const orbit = state === 'thinking' || state === 'working';
   const motion = (name: string, seconds: number, extra = ''): CSSProperties => ({
     animation: `${name} ${seconds}s ${extra || 'ease-in-out'} infinite`,
@@ -89,6 +90,9 @@ export function Avatar({ avatar, size = 96, state }: { avatar: AvatarSettings; s
     >
       {state === 'waiting' && (
         <circle cx="50" cy="52" r="47" fill="none" stroke={avatar.color} strokeWidth="2.5" style={motion('avatar-pulse', 1.6)} />
+      )}
+      {state === 'speaking' && (
+        <circle cx="50" cy="52" r="47" fill="none" stroke={avatar.color} strokeWidth="3" style={motion('avatar-speak', 0.9)} />
       )}
       {state === 'error' && <circle cx="50" cy="52" r="47" fill="none" stroke="var(--destructive)" strokeWidth="3" />}
       <g style={state === 'idle' ? motion('avatar-breathe', 4) : undefined} opacity={offline ? 0.45 : 1}>
@@ -122,8 +126,11 @@ export function Avatar({ avatar, size = 96, state }: { avatar: AvatarSettings; s
   );
 }
 
-/** The device state the bridge reports, as an avatar state. */
-export function avatarState(showing: string | null, online: boolean): AvatarState {
+const SHOWN = new Set<string>(['thinking', 'working', 'waiting', 'speaking', 'error']);
+
+/** The device state the bridge reports, as an avatar state; `speaking`: its speech plays somewhere now. */
+export function avatarState(showing: string | null, online: boolean, speaking = false): AvatarState {
   if (!online) return 'offline';
-  return showing === 'thinking' || showing === 'working' || showing === 'waiting' || showing === 'error' ? showing : 'idle';
+  if (speaking) return 'speaking';
+  return showing && SHOWN.has(showing) ? (showing as AvatarState) : 'idle';
 }

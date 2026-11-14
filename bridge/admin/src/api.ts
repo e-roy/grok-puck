@@ -19,6 +19,9 @@ export interface DeviceWifi {
   at: string;
 }
 
+/** Where a device's speech plays: on the device, on a Listen page in a browser, or both. */
+export type SpeakOn = 'device' | 'page' | 'both';
+
 export interface Device {
   id: string;
   name: string;
@@ -26,14 +29,18 @@ export interface Device {
   botId: string;
   volume: number;
   muted: boolean;
+  speakOn: SpeakOn;
   timings: Timings;
   firmware: string;
+  features: string[]; // what its firmware can do beyond 0.6.0 ("speaking": firmware 0.6.1)
   firstSeen: string;
   lastSeen: string;
   wifi: DeviceWifi | null; // null: its firmware doesn't report its networks
   online: boolean;
   waiting: boolean;
   showing: string | null;
+  speaking: SpeakOn | null; // where its speech plays right now
+  listen: { open: number; ready: boolean }; // its Listen pages: how many are open, and whether one is ready
 }
 
 export interface Bot {

@@ -197,6 +197,17 @@ tests included, uses your Grok Bot plan's usage.
 - The device's card in the admin page has its volume, mute, and the longest message (60 s by default).
   The admin page's **History** shows every message with how long each part took.
 
+**Hearing it on a computer instead (the Listen page).** To hear the bot through headphones or your
+computer's speakers, open `https://desk-admin.example.com/listen` in a browser tab (the device's card
+has **Open the Listen page**), press **Start listening** (browsers play sound only after a click), and
+set the device's **Speak on** to **The Listen page** or **Both**. Keep the tab open: it plays in the
+background too. Until a Listen page is started, and whenever none is, the device speaks, so nothing is
+lost. While the page plays, the device shows "speaking" (firmware 0.6.1 and later); a tap on it, or the
+page's **Stop**, stops the speech in both places. Mute silences it everywhere; the page uses the
+computer's volume. With several devices, the page has a picker. If your browser puts inactive tabs to
+sleep (Chrome's Memory Saver, Edge's sleeping tabs), add `desk-admin.example.com` to the sites it keeps
+active. On a phone it works while the screen is on.
+
 The voice routine's instructions ask the bot to confirm before anything important it heard by voice
 (sending, deleting, buying, publishing), since a transcription can mishear.
 
@@ -250,6 +261,9 @@ username (work Wi-Fi) can't be joined: use your phone's hotspot there.
 | Typed replies aren't spoken | the bot didn't keep its standing instructions | **Recent calls** shows whether it calls `desk_say`; send the instructions again ([step 2 of the Grok Bot guide](grok-bot-setup.md#2-the-standing-instructions)) |
 | A spoken message ends in an error, or "no answer" after 3 minutes | the routine's webhook URL or key is wrong, or the routine is paused | the Webhook key is the routine's **key** field alone, not the **header** field. In the app, the routine's switch (bot panel → **Activity** → **Upcoming**) must be on |
 | Speech is quiet | volume | the volume slider on the device's card; the board also has a volume trimmer |
+| Speech doesn't play on the Listen page | the page isn't started, Speak on is the device, or another page started later plays | the page says which: press **Start listening** (or **Play here**), or set **Speak on** on the device's card |
+| The Listen page says "Signed out" | the Cloudflare Access login has ended | reload the page and sign in again |
+| The device doesn't show "speaking" while the Listen page plays, and a tap doesn't stop it | its firmware is older than 0.6.1 | install the latest firmware from the installer (step 4); holding the device still stops the page |
 | Your words are often misheard | the speech-to-text service | set the language under **Speech**, or try another service: the admin page's **History** shows each transcript |
 
 ## Costs

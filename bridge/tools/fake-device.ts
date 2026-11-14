@@ -2,13 +2,15 @@
 // hardware.
 //
 //   pnpm fake-device [--url ws://127.0.0.1:8787/device] [--id fake-desk-01] [--play]
-//                    [--networks "Home Wi-Fi,Phone hotspot"] [--old-firmware]
+//                    [--networks "Home Wi-Fi,Phone hotspot"] [--firmware 0.6.1|0.6.0|0.5] [--old-firmware]
 //
 // Then type `talk` (a short tone as the "voice"), `talk some.wav` (16 kHz mono 16-bit WAV),
-// `stop` (stop speech), `signal -70` (its Wi-Fi signal, in dBm) or `quit`. What the bridge plays is
-// saved as WAV files in .fake/out/ (and played with ffplay when --play is given). The device key is
-// kept in .fake/<id>.key. It reports its saved Wi-Fi networks (the first one in use), as firmware
-// 0.6.0 does, unless --old-firmware is given.
+// `stop` (stop speech, as a tap does), `signal -70` (its Wi-Fi signal, in dBm) or `quit`. What the
+// bridge plays is saved as WAV files in .fake/out/ (and played with ffplay when --play is given). The
+// device key is kept in .fake/<id>.key. It acts like firmware 0.6.1: it reports its saved Wi-Fi
+// networks (the first one in use) and shows "speaking" while a Listen page plays its speech.
+// --firmware 0.6.0 acts like 0.6.0 (no "speaking" without its own audio); --firmware 0.5 (or
+// --old-firmware) like firmware before 0.6.0, which reports no networks either.
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
@@ -17,7 +19,7 @@ import readline from 'node:readline';
 import { parseArgs } from 'node:util';
 import WebSocket from 'ws';
 import { MIC_RATE, readWav, tones, wav } from '../src/audio.ts';
-import type { BridgeMessage, DeviceConfig, DisplayState, WifiReport } from '../src/protocol.ts';
+import type { BridgeMessage, DeviceConfig, ShownState, WifiReport } from '../src/protocol.ts';
 
 const SETUP_MS = 600_000; // how long the device keeps a requested setup network open
 
@@ -32,8 +34,9 @@ export interface FakeDeviceEvents {
   pending: [];
   welcome: [key: string];
   config: [config: DeviceConfig];
-  show: [state: DisplayState];
+  show: [state: ShownState];
   played: [played: Played];
+  stopped: [];
   'forget-wifi': [];
   'forget-network': [ssid: string];
   'wifi-setup': [];
@@ -47,16 +50,23 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
   key: string | undefined;
   /** Its Wi-Fi as it reports it; undefined acts like firmware older than 0.6.0, which reports none. */
   wifi: WifiReport | undefined;
+  /** It shows "speaking" on request while its speech plays elsewhere, as firmware 0.6.1 does. */
+  readonly speaking: boolean;
+  /** What the bridge last asked it to show. */
+  shown: ShownState | undefined;
+  /** Every state the bridge asked it to show, including ones its firmware doesn't know. */
+  readonly asked: ShownState[] = [];
   /** Acknowledge a clip only after its duration, like a real speaker. */
   realtime = false;
   private socket: WebSocket | undefined;
   private playing: { id: string; kind: 'speech' | 'tone'; sampleRate: number; started: number; chunks: Buffer[] } | undefined;
 
-  constructor(options: { url: string; id: string; key?: string; networks?: string[] }) {
+  constructor(options: { url: string; id: string; key?: string; networks?: string[]; speaking?: boolean }) {
     super();
     this.url = options.url;
     this.id = options.id;
     this.key = options.key;
+    this.speaking = options.speaking ?? false;
     if (options.networks) {
       const saved = options.networks.slice(0, 5);
       this.wifi = { saved, current: saved[0] ?? null, rssi: saved.length ? -58 : null, setup: false };
@@ -68,13 +78,14 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
       const socket = new WebSocket(this.url);
       this.socket = socket;
       socket.once('open', () => {
-        const firmware = this.wifi ? 'fake-device/0.6' : 'fake-device/0.5';
+        const firmware = this.speaking ? 'fake-device/0.6.1' : this.wifi ? 'fake-device/0.6' : 'fake-device/0.5';
         this.send({
           type: 'hello',
           device_id: this.id,
           firmware,
           ...(this.key ? { key: this.key } : {}),
           ...(this.wifi ? { wifi: this.wifi } : {}),
+          ...(this.speaking ? { features: ['speaking'] } : {}),
         });
         resolve();
       });
@@ -129,6 +140,10 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
         this.emit('config', message);
         break;
       case 'show':
+        this.asked.push(message.state);
+        // Older firmware logs a state it doesn't know and keeps what it shows.
+        if (message.state === 'speaking' && !this.speaking) break;
+        this.shown = message.state;
         this.emit('show', message.state);
         break;
       case 'play.start':
@@ -139,6 +154,7 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
         break;
       case 'stop':
         this.playing = undefined;
+        this.emit('stopped');
         break;
       case 'wifi.forget':
         this.emit('forget-wifi'); // a real device restarts into setup
@@ -191,9 +207,15 @@ async function main(): Promise<void> {
       dir: { type: 'string', default: '.fake' },
       play: { type: 'boolean', default: false },
       networks: { type: 'string', default: 'Home Wi-Fi,Phone hotspot' },
+      firmware: { type: 'string', default: '0.6.1' },
       'old-firmware': { type: 'boolean', default: false },
     },
   });
+  const level = values['old-firmware'] ? '0.5' : values.firmware;
+  if (!['0.5', '0.6.0', '0.6.1'].includes(level)) {
+    console.error('--firmware is 0.6.1 (the default), 0.6.0 or 0.5');
+    process.exit(1);
+  }
   const dir = path.resolve(values.dir);
   const out = path.join(dir, 'out');
   fs.mkdirSync(out, { recursive: true });
@@ -201,8 +223,8 @@ async function main(): Promise<void> {
   const key = fs.existsSync(keyFile) ? fs.readFileSync(keyFile, 'utf8').trim() : undefined;
   const say = (...parts: unknown[]) => console.log(`[${new Date().toLocaleTimeString()}]`, ...parts);
 
-  const networks = values['old-firmware'] ? undefined : values.networks.split(',').map((n) => n.trim()).filter(Boolean);
-  const device = new FakeDevice({ url: values.url, id: values.id, key, networks });
+  const networks = level === '0.5' ? undefined : values.networks.split(',').map((n) => n.trim()).filter(Boolean);
+  const device = new FakeDevice({ url: values.url, id: values.id, key, networks, speaking: level === '0.6.1' });
   device.realtime = true;
   device.on('pending', () => say(`waiting for approval: approve "${values.id}" in the admin page`));
   device.on('welcome', (newKey) => {
@@ -235,7 +257,7 @@ async function main(): Promise<void> {
     const arg = rest.join(' ');
     if (command === 'signal') {
       const rssi = Number(arg);
-      if (!device.wifi?.current) say('no Wi-Fi network in use (or --old-firmware)');
+      if (!device.wifi?.current) say('no Wi-Fi network in use (or --firmware 0.5)');
       else if (!Number.isInteger(rssi) || rssi > 0 || rssi < -100) say('signal takes a level in dBm, like: signal -70');
       else device.updateWifi({ rssi });
     } else if (command === 'talk') {

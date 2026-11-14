@@ -151,6 +151,18 @@
     opacity: 0.35;
   }
 }
+/* Speaking: the ring swells and brightens, a steady pulse (the device follows the voice when it plays itself). */
+@keyframes avatar-speak {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .avatar-motion,
   .avatar-motion * {
