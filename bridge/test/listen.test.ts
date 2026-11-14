@@ -1,6 +1,7 @@
 // The Listen page (spec §5.10): Speak on, where each clip plays, several pages for one device, stopping
-// from either side, mute, and the device's "speaking" while a page plays. Mock speech, fake devices and
-// fake Listen pages; nothing leaves this computer.
+// from either side, Stop listening, mute, the device's "speaking" while a page plays, and "listening"
+// on the pages while the device is held. Mock speech, fake devices and fake Listen pages; nothing
+// leaves this computer.
 import assert from 'node:assert/strict';
 import type { EventEmitter } from 'node:events';
 import fs from 'node:fs';
@@ -373,6 +374,107 @@ test('holding the device to talk stops the speech playing on the page', async ()
   const stopped = next(page, 'stopped');
   await device.talk(tones([{ hz: 300, ms: 50 }], MIC_RATE)); // too short to send to the bot
   await stopped;
+});
+
+test('while the owner holds the device, its pages and the admin page show "listening"; a cancel goes back to what they showed', async () => {
+  const device = await approved('held-01');
+  const page = await listenPage('held-01', false); // open is enough: it shows what the device shows
+  const working = next(page, 'show', (s) => s === 'working');
+  await admin('POST', '/api/devices/held-01/show', { state: 'working' });
+  await working;
+
+  const listening = next(page, 'show', (s) => s === 'listening');
+  device.startListening();
+  await listening;
+  assert.equal((await overviewDevice('held-01')).showing, 'listening');
+  await device.hear(tones([{ hz: 300, ms: 500 }], MIC_RATE));
+
+  const back = next(page, 'show', (s) => s === 'working');
+  device.cancelListening(); // too little voice: nothing is sent
+  await back;
+  assert.equal((await overviewDevice('held-01')).showing, 'working');
+  assert.ok(!(device.asked as string[]).includes('listening'), `the device was asked for: ${device.asked.join(', ')}`);
+});
+
+test('a hold too short to send: the pages go back to what they showed, and the device is never told "listening"', async () => {
+  const device = await approved('held-02');
+  const page = await listenPage('held-02', false);
+  const waiting = next(page, 'show', (s) => s === 'waiting');
+  await admin('POST', '/api/devices/held-02/show', { state: 'waiting' });
+  await waiting;
+  const listening = next(page, 'show', (s) => s === 'listening');
+  const back = next(page, 'show', (s) => s === 'waiting');
+  await device.talk(tones([{ hz: 300, ms: 50 }], MIC_RATE)); // sent, but too short for the bot
+  await listening;
+  await back;
+  assert.deepEqual(page.asked.slice(-2), ['listening', 'waiting']);
+  assert.equal(device.shown, 'waiting', 'told again what to show');
+  assert.ok(!(device.asked as string[]).includes('listening'), `the device was asked for: ${device.asked.join(', ')}`);
+});
+
+test('a device that drops while held: its pages stop showing "listening"', async () => {
+  const device = await approved('held-03');
+  const page = await listenPage('held-03', false);
+  const listening = next(page, 'show', (s) => s === 'listening');
+  device.startListening();
+  await listening;
+  const idle = next(page, 'show', (s) => s === 'idle');
+  await goOffline(device);
+  await idle;
+});
+
+test('Stop listening: the page is no longer ready, its clip stops there, and the device speaks again', async () => {
+  const device = await approved('stop-listen-01');
+  await admin('PATCH', '/api/devices/stop-listen-01', { speakOn: 'page' });
+  const page = await listenPage('stop-listen-01');
+  page.autoAck = false;
+  const started = next(page, 'start');
+  const speaking = next(device, 'show', (s) => s === 'speaking');
+  await say('stop-listen-01', LONG);
+  await started;
+  await speaking;
+
+  const stopped = next(page, 'stopped'); // the bridge ends the clip it was playing there
+  const off = next(page, 'status', (s: { ready: boolean; role: string }) => !s.ready && s.role === 'off');
+  const idle = next(device, 'show', (s) => s === 'idle'); // it showed "speaking" while the page played
+  page.stopListening();
+  await stopped;
+  await off;
+  await idle;
+  assert.deepEqual((await overviewDevice('stop-listen-01')).listen, { open: 1, ready: false });
+
+  // As when no page is ready: the device speaks.
+  const onPage = count(page, 'start');
+  const played = next<Played>(device, 'played');
+  const { message } = await say('stop-listen-01', 'Back on the device.');
+  assert.match(String(message), /Speaking on stop-listen-01\./);
+  assert.equal((await played).kind, 'speech');
+  assert.equal(onPage(), 0, 'nothing more on the page');
+
+  // Start listening again: the page plays once more.
+  page.autoAck = true;
+  const here = next(page, 'status', (s: { role: string }) => s.role === 'here');
+  page.start();
+  await here;
+  const again = next<Played>(page, 'played');
+  await say('stop-listen-01', 'And here again.');
+  await again;
+});
+
+test('Stop listening is not Stop: with Speak on set to both, the device carries on', async () => {
+  const device = await approved('stop-listen-02');
+  await admin('PATCH', '/api/devices/stop-listen-02', { speakOn: 'both' });
+  const page = await listenPage('stop-listen-02');
+  const onDevice = count(device, 'stopped');
+  const started = next(page, 'start');
+  const played = next<Played>(device, 'played');
+  await say('stop-listen-02', 'one two three four five six seven eight');
+  await started;
+  const stopped = next(page, 'stopped');
+  page.stopListening();
+  await stopped;
+  assert.equal((await played).kind, 'speech', 'the device played the clip to its end');
+  assert.equal(onDevice(), 0, 'the device was never told to stop');
 });
 
 test("the page's Stop stops speech everywhere: on the device too", async () => {

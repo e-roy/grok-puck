@@ -1,6 +1,7 @@
 // The Listen page's link to the bridge (/listen/ws on the admin page's address): which device it plays
-// for, Start listening, Stop, and the speech it plays. It reconnects by itself, waiting a little longer
-// each time. The bridge side is bridge/src/listen.ts; the messages are listed in bridge/src/protocol.ts.
+// for, Start and Stop listening, Stop, and the speech it plays. It reconnects by itself, waiting a
+// little longer each time. The bridge side is bridge/src/listen.ts; the messages are listed in
+// bridge/src/protocol.ts.
 import type { Avatar, SpeakOn } from '@/api.ts';
 import { PcmPlayer } from './player.ts';
 
@@ -26,9 +27,9 @@ export interface ListenState {
   devices: PageDevice[] | undefined; // undefined until the bridge has answered once
   device: string | null; // the device this page plays for, as the bridge has it
   role: Role; // off: not started · here: it plays · elsewhere: a page started later plays
-  shown: string; // what the device shows, or "speaking" while the desk speaks anywhere
+  shown: string; // what the device shows, "speaking" while the desk speaks anywhere, "listening" while it is held
   playing: boolean; // speech is playing in this tab
-  started: boolean; // Start listening was pressed
+  started: boolean; // Start listening was pressed (and not Stop listening since)
   paused: boolean; // started, but the browser has paused this page's sound
   problem: string; // why Start listening didn't work, if it didn't
 }
@@ -156,6 +157,16 @@ export class ListenLink {
   stopSpeech(): void {
     this.player.stop();
     this.send({ type: 'stop' });
+  }
+
+  /**
+   * Stop listening: this page no longer plays the device's speech (what it was playing stops here),
+   * the device speaks instead, and Start listening comes back. Unlike Stop, the device carries on.
+   */
+  stopListening(): void {
+    this.player.stop();
+    this.set({ started: false, paused: false, problem: '' });
+    this.send({ type: 'listen', device: this.wanted, ready: false });
   }
 
   private get ready(): boolean {

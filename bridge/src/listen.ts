@@ -1,11 +1,11 @@
 // The Listen pages: browser tabs that play a device's speech (spec §5.10). Each says which device it
 // plays for, and counts as ready only once its Start listening button was pressed, since browsers
-// play sound only after a click. With several ready pages for one device, the one started last plays
-// and the others show "playing elsewhere". The hub decides what each clip plays on; this keeps track
-// of the pages and talks to them.
+// play sound only after a click, and until Stop listening (or the browser pausing its sound). With
+// several ready pages for one device, the one started last plays and the others show "playing
+// elsewhere". The hub decides what each clip plays on; this keeps track of the pages and talks to them.
 import type { FastifyBaseLogger } from 'fastify';
 import type { RawData, WebSocket } from 'ws';
-import { type BridgePageMessage, type PageDevice, type PageRole, parsePageMessage, type ShownState } from './protocol.ts';
+import { type BridgePageMessage, type PageDevice, type PageRole, type PageState, parsePageMessage } from './protocol.ts';
 import type { Store } from './store.ts';
 
 const PING_MS = 25_000; // as for devices: keeps the socket open through proxies that drop idle ones
@@ -19,7 +19,7 @@ export const CLOSE_TOO_MANY = 4003;
 export interface Page {
   socket: WebSocket;
   deviceId: string | null; // the device it plays for
-  ready: boolean; // Start listening was pressed
+  ready: boolean; // Start listening was pressed (and not Stop listening since)
   rank: number; // the ready page with the highest plays: Start listening takes the next number, a reconnect 0
   alive: boolean;
   timers: NodeJS.Timeout[];
@@ -28,8 +28,8 @@ export interface Page {
 /** What the pages need to know about the devices, from the hub. */
 export interface PagesView {
   online(deviceId: string): boolean;
-  /** What a page shows for this device: its resting state, or "speaking". */
-  shown(deviceId: string): ShownState;
+  /** What a page shows for this device: its resting state, "speaking", or "listening" while it is held. */
+  shown(deviceId: string): PageState;
 }
 
 export interface PageEvents {
@@ -111,7 +111,7 @@ export class ListenPages {
   }
 
   /** What this device's pages show now. */
-  show(deviceId: string, state: ShownState): void {
+  show(deviceId: string, state: PageState): void {
     for (const page of this.pages) if (page.deviceId === deviceId) this.send(page, { type: 'show', state });
   }
 

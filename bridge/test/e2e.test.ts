@@ -10,6 +10,7 @@ import { loadConfig } from '../src/config.ts';
 import { type Bridge, startBridge } from '../src/server.ts';
 import { FakeDevice, type Played } from '../tools/fake-device.ts';
 import { FakeGrokBot } from '../tools/fake-grokbot.ts';
+import { FakeListenPage } from '../tools/fake-listen-page.ts';
 
 const WEBHOOK_KEY = 'test-webhook-key';
 
@@ -119,6 +120,36 @@ test('asking the same thing again gets its answer spoken again', async () => {
   await speech;
   const { history } = await admin<{ history: Array<{ kind: string; detail?: string }> }>('GET', '/api/overview');
   assert.doesNotMatch(history.find((h) => h.kind === 'say')?.detail ?? '', /Already spoken/);
+});
+
+test('a Listen page shows "listening" while the owner holds the device, then thinking once the message goes to the bot', async () => {
+  const page = new FakeListenPage({ url: `ws://127.0.0.1:${bridge.adminPort}/listen/ws`, origin: `http://127.0.0.1:${bridge.adminPort}` });
+  await page.connect();
+  try {
+    const picked = next(page, 'status', (s: { device: string | null }) => s.device === 'test-desk-01');
+    page.listen('test-desk-01');
+    await picked;
+
+    const listening = next(page, 'show', (s) => s === 'listening');
+    device.startListening();
+    await listening;
+    const { devices } = await admin<{ devices: Array<{ id: string; showing: string | null }> }>('GET', '/api/overview');
+    assert.equal(devices.find((d) => d.id === 'test-desk-01')?.showing, 'listening', 'the admin page shows it too');
+    await device.hear(tones([{ hz: 300, ms: 800 }], MIC_RATE));
+
+    const thinking = next(page, 'show', (s) => s === 'thinking');
+    const speech = next<Played>(device, 'played', (p) => p.kind === 'speech');
+    device.endListening();
+    await thinking;
+    await speech;
+    await next(page, 'show', (s) => s === 'idle');
+    const turn = page.asked.slice(page.asked.indexOf('listening'));
+    assert.deepEqual(turn.slice(0, 2), ['listening', 'thinking'], `the page showed: ${turn.join(', ')}`);
+    assert.ok(turn.includes('speaking'), 'then the reply');
+    assert.ok(!(device.asked as string[]).includes('listening'), `the device was asked for: ${device.asked.join(', ')}`);
+  } finally {
+    page.close();
+  }
 });
 
 test('the bot can speak and show its status on its own', async () => {

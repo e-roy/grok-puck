@@ -3,7 +3,7 @@
 // what arrives and answers `played` when a clip's audio has all arrived (or when told to).
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
-import type { BridgePageMessage, PageDevice, PageRole, ShownState } from '../src/protocol.ts';
+import type { BridgePageMessage, PageDevice, PageRole, PageState } from '../src/protocol.ts';
 import type { Played } from './fake-device.ts';
 
 export interface PageStatus {
@@ -15,7 +15,7 @@ export interface PageStatus {
 
 export interface FakeListenPageEvents {
   status: [status: PageStatus];
-  show: [state: ShownState];
+  show: [state: PageState];
   start: [id: string];
   played: [played: Played];
   stopped: [];
@@ -26,12 +26,15 @@ export interface FakeListenPageEvents {
 export class FakeListenPage extends EventEmitter<FakeListenPageEvents> {
   readonly url: string;
   status: PageStatus | undefined;
-  shown: ShownState | undefined;
+  shown: PageState | undefined;
+  /** Every state the bridge asked it to show, in order. */
+  readonly asked: PageState[] = [];
   /** Answer `played` as soon as a clip's audio has all arrived. False: only when ack() is called. */
   autoAck = true;
   private readonly origin: string | undefined;
   private readonly headers: Record<string, string>;
   private socket: WebSocket | undefined;
+  private device: string | null = null; // the device it plays for, as it last said
   private playing: { id: string; kind: 'speech' | 'tone'; sampleRate: number; chunks: Buffer[] } | undefined;
   private held: Played | undefined;
 
@@ -67,12 +70,20 @@ export class FakeListenPage extends EventEmitter<FakeListenPageEvents> {
 
   /** Which device it plays for; ready: Start listening was pressed before (after a reconnect). */
   listen(device: string | null, ready = false): void {
+    this.device = device;
     this.send({ type: 'listen', device, ready });
   }
 
   /** Start listening (or Play here). */
   start(): void {
     this.send({ type: 'start' });
+  }
+
+  /** Stop listening: it drops what it was playing and is no longer ready, as the page does. */
+  stopListening(): void {
+    this.playing = undefined;
+    this.held = undefined;
+    this.send({ type: 'listen', device: this.device, ready: false });
   }
 
   /** The Stop button. */
@@ -112,6 +123,7 @@ export class FakeListenPage extends EventEmitter<FakeListenPageEvents> {
       }
       case 'show':
         this.shown = message.state;
+        this.asked.push(message.state);
         this.emit('show', message.state);
         break;
       case 'play.start':

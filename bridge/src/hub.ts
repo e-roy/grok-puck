@@ -12,6 +12,7 @@ import {
   type DisplayState,
   FEATURE_SPEAKING,
   type Hello,
+  type PageState,
   parseDeviceMessage,
   type ShownState,
   type WifiReport,
@@ -72,7 +73,7 @@ interface Speaker {
 interface Link {
   socket: WebSocket;
   deviceId: string;
-  listening: Buffer[] | undefined;
+  listening: Buffer[] | undefined; // the owner holds the device: what it heard so far (from listen.start)
   listenBytes: number;
   alive: boolean;
   pinger: NodeJS.Timeout;
@@ -159,6 +160,12 @@ export class DeviceHub {
   /** What an online device shows (as far as the bridge decides it). */
   shown(id: string): ShownState | undefined {
     return this.links.has(id) ? this.deviceShown(id) : undefined;
+  }
+
+  /** For the admin page: what an online device shows, "listening" while the owner holds it. */
+  showing(id: string): PageState | undefined {
+    if (!this.links.has(id)) return undefined;
+    return this.isListening(id) ? 'listening' : this.deviceShown(id);
   }
 
   /** Where this device's speech plays right now, if it is speaking. */
@@ -417,12 +424,15 @@ export class DeviceHub {
         this.stopTurn(link.deviceId, link.socket);
         link.listening = [];
         link.listenBytes = 0;
+        this.sendPageShown(link.deviceId); // the pages show "listening"; the device shows it already
         return;
       case 'listen.end':
         this.finishListening(link);
         return;
       case 'listen.cancel':
+        // Nothing is sent: the pages show again what they showed before (the device does that itself).
         link.listening = undefined;
+        this.sendPageShown(link.deviceId);
         return;
       case 'played':
         this.onPlayed(link.socket, message.id, message.stopped);
@@ -456,6 +466,7 @@ export class DeviceHub {
     }
   }
 
+  /** Listening ended (`listen.end`): what was heard goes to the bot (the desk then shows "thinking" everywhere). */
   private finishListening(link: Link): void {
     const chunks = link.listening;
     link.listening = undefined;
@@ -463,12 +474,16 @@ export class DeviceHub {
     if (!chunks || !device) return;
     const pcm = Buffer.concat(chunks);
     if (pcm.length < MIN_UTTERANCE_BYTES) {
-      // Nothing to send: the device guessed "thinking", so it is told again what to show.
+      // Nothing to send: the device guessed "thinking", so it is told again what to show (and so are the pages).
       const resting = this.resting.get(device.id) ?? 'idle';
       this.show(device.id, resting === 'error' ? 'idle' : resting);
       return;
     }
     this.events.utterance(device, pcm.subarray(0, pcm.length & ~1));
+  }
+
+  private isListening(id: string): boolean {
+    return this.links.get(id)?.listening !== undefined;
   }
 
   // ---- speech: one clip at a time per device, on the device, its Listen page, or both ----
@@ -603,7 +618,9 @@ export class DeviceHub {
     return this.speakers.get(id)?.onPage && canShow ? 'speaking' : resting;
   }
 
-  private pageShown(id: string): ShownState {
+  /** What the pages show: "listening" while the owner holds the device (as it shows), else as below. */
+  private pageShown(id: string): PageState {
+    if (this.isListening(id)) return 'listening';
     const speaker = this.speakers.get(id);
     return speaker?.turn || speaker?.onPage ? 'speaking' : (this.resting.get(id) ?? 'idle');
   }
@@ -611,6 +628,11 @@ export class DeviceHub {
   private sendShown(id: string): void {
     const link = this.links.get(id);
     if (link) this.send(link.socket, { type: 'show', state: this.deviceShown(id) });
+    this.sendPageShown(id);
+  }
+
+  /** Tells the pages only: the device decides for itself while it is held. */
+  private sendPageShown(id: string): void {
     this.pages.show(id, this.pageShown(id));
   }
 
@@ -631,7 +653,10 @@ export class DeviceHub {
   private drop(link: Link): void {
     clearInterval(link.pinger);
     this.release(link.socket);
+    const listening = link.listening !== undefined;
+    link.listening = undefined;
     if (this.links.get(link.deviceId) === link) this.links.delete(link.deviceId);
+    if (listening) this.sendPageShown(link.deviceId); // it dropped while held: the pages stop showing "listening"
   }
 
   private send(socket: WebSocket, message: BridgeMessage): void {

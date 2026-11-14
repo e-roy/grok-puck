@@ -26,12 +26,14 @@
 //
 // The Listen page (a browser tab that plays a device's speech, on the admin port at /listen/ws)
 // Page → bridge
-//   listen         which device it plays for; ready: Start listening was pressed before (a reconnect)
+//   listen         which device it plays for; ready: Start listening was pressed before (a reconnect).
+//                  ready: false after Stop listening (or while the browser pauses its sound): the device speaks
 //   start          Start listening (or Play here) was pressed: it plays from now on, the others don't
 //   played         a clip finished playing there          stop     its Stop button: stop speech everywhere
 // Bridge → page
 //   status         the devices to pick from, the one it plays for, and its role (off, here, elsewhere)
-//   show           what the device shows, or "speaking" while the desk speaks anywhere
+//   show           what the device shows, "speaking" while the desk speaks anywhere, or "listening"
+//                  while the owner holds the device (never sent to the device: it shows that itself)
 //   play.start, binary frames (24 kHz PCM), play.end, stop: as for a device
 //   error
 import { z } from 'zod';
@@ -42,6 +44,11 @@ export const DISPLAY_STATES = ['idle', 'thinking', 'working', 'waiting', 'error'
 export type DisplayState = (typeof DISPLAY_STATES)[number];
 /** What a device or a Listen page is told to show: a resting state, or "speaking". */
 export type ShownState = DisplayState | 'speaking';
+/**
+ * What a Listen page (and the admin page) shows: what the device is told, or "listening" while the
+ * owner holds it. The device is never told "listening": it shows its own listening face.
+ */
+export type PageState = ShownState | 'listening';
 
 /** In a device's hello: it can show "speaking" on request while its speech plays elsewhere. */
 export const FEATURE_SPEAKING = 'speaking';
@@ -136,7 +143,7 @@ export type PageRole = 'off' | 'here' | 'elsewhere';
 
 export type BridgePageMessage =
   | { type: 'status'; devices: PageDevice[]; device: string | null; ready: boolean; role: PageRole }
-  | { type: 'show'; state: ShownState }
+  | { type: 'show'; state: PageState }
   | Extract<BridgeMessage, { type: 'play.start' | 'play.end' | 'stop' | 'error' }>;
 
 export function parsePageMessage(text: string): PageMessage | undefined {
