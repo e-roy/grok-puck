@@ -81,8 +81,9 @@ ESP32-S3-Touch-LCD-1.46.
 
 - Build and flash as in [firmware/README.md](firmware/README.md). On Windows, keep the repository in a
   short path: deep build folders break the 260-character path limit.
-- Raise `PROJECT_VER` in `firmware/CMakeLists.txt` when the firmware's behaviour changes. The admin
-  page shows each device's version, and a release is named after it.
+- Raise `PROJECT_VER` in `firmware/CMakeLists.txt` when the firmware's behaviour changes and
+  `main`'s version has been released already ([Versions](#versions)). The admin page shows each
+  device's version, and a release is named after it.
 - Test on a real board, and say in the pull request what you tried on it.
 - `sdkconfig` is generated and git-ignored: settings that should apply to everyone go in
   `sdkconfig.defaults`.
@@ -110,8 +111,9 @@ pnpm serve                                   # try the page on http://127.0.0.1:
 
 Releases are built by GitHub Actions, never on someone's computer:
 
-1. In a pull request, raise `PROJECT_VER` in `firmware/CMakeLists.txt` (for example `0.7.0`), and
-   merge it.
+1. Make sure `PROJECT_VER` in `firmware/CMakeLists.txt` on `main` names a version that isn't
+   released yet: the pull request that changed the firmware raised it ([Versions](#versions)). If it
+   didn't, raise it in a pull request and merge it.
 2. On GitHub: **Actions** → **Release firmware** → **Run workflow**, on `main`.
 
 The workflow ([.github/workflows/release.yml](.github/workflows/release.yml)) refuses a version that
@@ -120,6 +122,15 @@ on the commit it built (the four firmware parts, the installer's manifest and th
 with release notes), then deploys the installer page to GitHub Pages. If it fails after creating a
 draft release, delete the draft before running it again; if only the page's deployment fails,
 re-run the failed job.
+
+### Versions
+
+`PROJECT_VER` names a release. A pull request that changes the firmware raises it only if `main`'s
+version has been released already (the tag `v<version>` exists); otherwise it leaves it, since the
+next release carries both changes. The patch number (0.6.0 → 0.6.1) is for fixes and small
+additions; the minor number only for a milestone or a change that needs the bridge updated first;
+1.0.0 comes when the polish milestone (M6) is done. What a device can do is told by `features` in
+its hello, never by comparing versions.
 
 ## The case and stand (OpenSCAD)
 

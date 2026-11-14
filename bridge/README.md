@@ -10,6 +10,8 @@ The small always-on server between a desk display, Grok Bot and speech services:
 - **Speech** goes to any OpenAI-compatible service: TTS (for example a self-hosted Kokoro server) and STT.
 - An **admin page** sets up devices (including their saved Wi-Fi networks, by name only), bots
   (webhook, avatar, voice) and speech, and shows the history with timings.
+- A **Listen page** (`/listen`, next to the admin page) plays a device's speech in a browser tab, on the
+  device's **Speak on** setting: the device, the Listen page or both.
 
 How the parts fit, and why: [../docs/spec.md](../docs/spec.md).
 
@@ -24,7 +26,8 @@ pnpm build:admin
 pnpm start
 ```
 
-- Admin page: <http://127.0.0.1:8788> (this computer only).
+- Admin page: <http://127.0.0.1:8788> (this computer only), and its Listen page:
+  <http://127.0.0.1:8788/listen>.
 - Devices and MCP: port 8787 (`ws://<this computer>:8787/device`, `http://<this computer>:8787/mcp`).
 - Data (bots, devices, keys, history) is kept in `bridge/data/state.json`. It holds the webhook and speech
   API keys, so keep it private.
@@ -39,14 +42,20 @@ for speech, a fixed transcript), so nothing else is needed.
    `http://127.0.0.1:8790/webhook` with the key `test-key`.
 3. Admin page → **Bots**: add a bot and set its webhook URL and key to those two values.
 4. In a third terminal: `pnpm fake-device`. It appears under **Devices**: approve it and attach it to the bot.
-   It reports two saved Wi-Fi networks, as firmware 0.6.0 does, so its card has a Wi-Fi part:
-   **Wi-Fi setup**, **Forget** for each network and **Forget all networks** reach it and show in its
-   terminal. `--networks "A,B,C"` chooses the names, `--old-firmware` reports none (like firmware
-   before 0.6.0), and typing `signal -70` changes its signal.
+   It acts like firmware 0.6.1: it reports two saved Wi-Fi networks, so its card has a Wi-Fi part
+   (**Wi-Fi setup**, **Forget** for each network and **Forget all networks** reach it and show in its
+   terminal), and it shows "speaking" while a Listen page plays its speech. `--networks "A,B,C"`
+   chooses the names, `--firmware 0.6.0` acts like firmware 0.6.0, `--firmware 0.5` (or
+   `--old-firmware`) like firmware before 0.6.0, which reports no networks, and typing `signal -70`
+   changes its signal.
 5. In the fake device, type `talk`. The fake bot receives the message, shows "working", and answers
    "You said: …", which the fake device plays and saves in `.fake/out/` (add `--play` to hear it through
    ffplay).
 6. In the fake bot, type `say Hello there` (the bot speaking on its own) or `status waiting`.
+7. To hear it in the browser instead: open <http://127.0.0.1:8788/listen>, press **Start listening**,
+   and set the device's **Speak on** to **The Listen page** in the admin page. Its speech now plays in
+   that tab while the fake device shows "speaking"; typing `stop` in the fake device stops it, as a
+   tap on a real one does.
 
 To hear real voices, set **Speech → Text to speech** to OpenAI-compatible with the speech server's base
 URL (ending in `/v1`), key and model (`kokoro` for Kokoro), then choose a voice for the bot and press
@@ -102,6 +111,9 @@ No reply within 3 minutes shows "no answer" on the device; a later reply is stil
 - New devices wait for approval in the admin page; at most 10 may wait at once.
 - The admin page is never public: on this computer only, or behind Cloudflare Access with its login
   token checked again by the bridge. Changes need an `x-desk-admin` header, which other websites can't send.
+- The Listen page and its WebSocket (`/listen/ws`) pass the same checks. The WebSocket must also come
+  from the page itself (its `Origin` is the page's own address), since browsers let any site open a
+  WebSocket; behind Access it closes when the login ends.
 - Webhook and speech keys are kept in `data/state.json` and never shown again in full.
 - Limits per hour: 60 spoken messages to the bot, 120 `desk_say` and 600 `desk_status` calls.
 - The admin page's **Recent calls** list shows what each MCP caller sent (header names, client name, tool
@@ -126,7 +138,7 @@ from the lockfile with a pinned pnpm.
 pnpm test          # unit tests and the end-to-end loop (bridge + fake device + fake Grok Bot)
 pnpm check         # TypeScript, server and admin page
 pnpm dev           # the bridge, restarting on changes
-pnpm dev:admin     # the admin page with hot reload on :5173, using a bridge running locally
+pnpm dev:admin     # the admin page with hot reload on :5173 (Listen page: /listen.html), using a local bridge
 ```
 
 The server runs its TypeScript directly on Node 24 (no build step); only the admin page is built.
@@ -134,8 +146,10 @@ The server runs its TypeScript directly on Node 24 (no build step); only the adm
 ### The admin page
 
 `admin/` is its own package in this pnpm workspace (React, Vite, Tailwind CSS v4 and shadcn/ui on
-Base UI), so its packages stay out of the server's. `pnpm build:admin` builds it into `admin/dist`,
-which the bridge serves.
+Base UI), so its packages stay out of the server's. It has two pages, the admin page (`index.html`) and
+the Listen page (`listen.html`, code in `src/listen/`), sharing the components and the theme.
+`pnpm build:admin` builds both into `admin/dist`, which the bridge serves. The tests drive the Listen
+page's WebSocket with `tools/fake-listen-page.ts`.
 
 The components in `admin/src/components/ui/` are copied from shadcn/ui and are ours to change (licence
 in `THIRD_PARTY_NOTICES.md`). Add more with the script, not `shadcn add`: the CLI would install

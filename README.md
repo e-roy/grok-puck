@@ -5,7 +5,8 @@ your desk:
 
 - it shows the bot's avatar (shape and colour as in the Grok Bot app), animated while the bot thinks
   and works;
-- it **speaks everything the bot writes**, so you can follow it without keeping its window open;
+- it **speaks everything the bot writes**, so you can follow it without keeping its window open (or
+  plays it in a browser tab on your computer, for headphones: the Listen page);
 - **hold it and speak** to answer, then let go: your words reach the bot as if you had typed them.
 
 Grok Bot is the only "brain": there is no separate voice model or AI API to pay for. Speech-to-text and
@@ -31,9 +32,9 @@ design: [docs/spec.md](docs/spec.md).
 
 | Part | State |
 |---|---|
-| [Bridge](bridge/) (TypeScript server + admin page) | working, with tests and a fake device / fake Grok Bot |
+| [Bridge](bridge/) (TypeScript server + admin page) | working, with tests and a fake device / fake Grok Bot; its Listen page plays the bot's speech in a browser tab |
 | [Firmware](firmware/) (ESP-IDF, Waveshare ESP32-S3-Touch-LCD-1.46) | working: Wi-Fi setup from a phone with up to 5 saved networks (for travelling), approval, avatar and states, spoken replies, hold to talk |
-| [Installer](installer/) (web page on GitHub Pages) and [releases](https://github.com/e-roy/grok-puck/releases) | built: installs the firmware from the browser, keeping the device's settings; first release to come |
+| [Installer](installer/) (web page on GitHub Pages) and [releases](https://github.com/e-roy/grok-puck/releases) | released: v0.6.0 on 13 Nov 2026. Installs the firmware from the browser, keeping the device's settings |
 | Grok Bot setup | working: MCP server, standing instructions and voice routine. Some checks still to run: [docs/grok-bot-setup.md](docs/grok-bot-setup.md) |
 | [Case and stand](hardware/) (3D prints) | slim case and stand designed; an earlier larger case printed and fitting |
 
