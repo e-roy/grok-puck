@@ -38,7 +38,7 @@ export interface Device {
   wifi: DeviceWifi | null; // null: its firmware doesn't report its networks
   online: boolean;
   waiting: boolean;
-  showing: string | null;
+  showing: string | null; // what it shows; "listening" while the owner holds it
   speaking: SpeakOn | null; // where its speech plays right now
   listen: { open: number; ready: boolean }; // its Listen pages: how many are open, and whether one is ready
 }

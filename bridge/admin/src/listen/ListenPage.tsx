@@ -1,8 +1,9 @@
 // The Listen page (spec §5.10): plays a desk device's speech in this browser tab, with the bot's avatar
-// showing what the device shows, Start listening (browsers play sound only after a click), Stop, and a
-// picker when there are several devices.
-import { BotIcon, HeadphonesIcon, SquareIcon, TriangleAlertIcon, Volume2Icon, WifiOffIcon } from 'lucide-react';
-import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+// showing what the device shows, Start listening (browsers play sound only after a click) and Stop
+// listening (the device speaks again), Stop (cuts the speech short, everywhere), and a picker when
+// there are several devices.
+import { BotIcon, HeadphoneOffIcon, HeadphonesIcon, SquareIcon, TriangleAlertIcon, Volume2Icon, WifiOffIcon } from 'lucide-react';
+import { type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Avatar, type AvatarState } from '@/components/app/Avatar.tsx';
 import { ThemeSwitch } from '@/components/app/ThemeSwitch.tsx';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -18,6 +19,7 @@ const GREY = { shape: 'blob', color: '#9ca3af' } as const;
 
 const STATE_TEXT: Record<string, string> = {
   idle: 'Idle',
+  listening: 'Listening to you…', // the owner holds the device to talk
   thinking: 'Thinking…',
   working: 'Working…',
   waiting: 'Waiting for you',
@@ -142,9 +144,20 @@ function Player({ state, device, link }: { state: ListenState; device: PageDevic
   const playsHere = state.started && !state.paused && state.role === 'here';
   const label = !connected ? 'Not connected' : state.playing ? 'Speaking here' : (STATE_TEXT[state.shown] ?? 'Idle');
   const [starting, setStarting] = useState(false);
+  // Start and Stop listening replace each other: the keyboard focus follows to the one that appears.
+  const startRef = useRef<HTMLButtonElement>(null);
+  const stopListeningRef = useRef<HTMLButtonElement>(null);
+  const focusNext = () => requestAnimationFrame(() => (link.snapshot().started ? stopListeningRef : startRef).current?.focus());
   const start = () => {
     setStarting(true);
-    void link.startListening().finally(() => setStarting(false));
+    void link.startListening().finally(() => {
+      setStarting(false);
+      focusNext();
+    });
+  };
+  const stopListening = () => {
+    link.stopListening();
+    focusNext();
   };
 
   return (
@@ -165,7 +178,7 @@ function Player({ state, device, link }: { state: ListenState; device: PageDevic
 
       <div className="flex flex-wrap justify-center gap-2">
         {(!state.started || state.paused) && (
-          <Button size="lg" className="h-11 px-5" onClick={start} disabled={!connected || starting}>
+          <Button ref={startRef} size="lg" className="h-11 px-5" onClick={start} disabled={!connected || starting}>
             {starting ? <Spinner /> : <HeadphonesIcon />}
             {state.paused ? 'Start listening again' : 'Start listening'}
           </Button>
@@ -175,12 +188,30 @@ function Player({ state, device, link }: { state: ListenState; device: PageDevic
             <Volume2Icon /> Play here
           </Button>
         )}
-        <Button size="lg" variant="outline" className="h-11 px-5" onClick={() => link.stopSpeech()} disabled={!connected || !speaking}>
+        <Button
+          size="lg"
+          variant="outline"
+          className="h-11 px-5"
+          onClick={() => link.stopSpeech()}
+          disabled={!connected || !speaking}
+          title="Cut the speech short, here and on the device"
+        >
           <SquareIcon /> Stop
         </Button>
       </div>
 
       <p className="max-w-sm text-sm text-muted-foreground">{explain(state, device, playsHere)}</p>
+      {state.started && (
+        // Set apart from Stop: this ends listening in this tab, it doesn't cut the speech short.
+        <div className="flex flex-col items-center gap-1">
+          <Button ref={stopListeningRef} variant="ghost" onClick={stopListening} aria-describedby="stop-listening-hint">
+            <HeadphoneOffIcon /> Stop listening
+          </Button>
+          <p id="stop-listening-hint" className="max-w-sm text-xs text-muted-foreground">
+            This tab stops playing {device.name}&apos;s speech, and the device speaks instead.
+          </p>
+        </div>
+      )}
       {state.problem && (
         <Alert variant="destructive" className="text-left">
           <TriangleAlertIcon />

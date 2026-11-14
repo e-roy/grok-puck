@@ -163,6 +163,34 @@
     transform: scale(1.02);
   }
 }
+/* Listening: a thick ring that swells and fades unevenly, as the device's follows the voice level. */
+@keyframes avatar-listen {
+  0%,
+  100% {
+    opacity: 0.4;
+    stroke-width: 2px;
+  }
+  15% {
+    opacity: 1;
+    stroke-width: 5px;
+  }
+  30% {
+    opacity: 0.6;
+    stroke-width: 3px;
+  }
+  45% {
+    opacity: 0.95;
+    stroke-width: 4.5px;
+  }
+  65% {
+    opacity: 0.45;
+    stroke-width: 2.5px;
+  }
+  80% {
+    opacity: 0.85;
+    stroke-width: 4px;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .avatar-motion,
   .avatar-motion * {

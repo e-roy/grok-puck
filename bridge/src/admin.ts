@@ -380,7 +380,7 @@ function overview(ctx: AdminContext) {
       wifi: d.wifi ?? null, // null: its firmware doesn't report its networks
       online: hub.isOnline(d.id),
       waiting: hub.isWaiting(d.id),
-      showing: hub.shown(d.id) ?? null,
+      showing: hub.showing(d.id) ?? null, // what it shows: "listening" while the owner holds it
       speaking: hub.speaking(d.id), // where its speech plays right now: device, page, both or null
       listen: hub.listenSummary(d.id), // its Listen pages: how many are open, whether one is ready
     })),

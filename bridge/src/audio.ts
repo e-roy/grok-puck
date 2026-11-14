@@ -60,23 +60,29 @@ export function readWav(file: Buffer): WavInfo {
 
 export interface Tone {
   hz: number;
+  /** Glides to this pitch by the tone's end (default: stays at `hz`). */
+  toHz?: number;
   ms: number;
   gapMs?: number;
 }
 
-/** Sine tones with short fades. */
+/** Sine tones with short fades. `level` is the peak, as a share of full scale (at most 1: no clipping). */
 export function tones(parts: Tone[], sampleRate = SPEAKER_RATE, level = 0.3): Buffer {
   const samples = (ms: number) => Math.round((ms * sampleRate) / 1000);
   const total = parts.reduce((n, p) => n + samples(p.ms) + samples(p.gapMs ?? 0), 0);
   const out = Buffer.alloc(total * 2);
+  const peak = Math.min(1, Math.max(0, level));
   let i = 0;
   for (const part of parts) {
     const n = samples(part.ms);
     const fade = Math.max(1, Math.min(Math.floor(n / 2), samples(10)));
+    const glide = (part.toHz ?? part.hz) - part.hz;
+    let phase = 0;
     for (let k = 0; k < n; k++) {
       const envelope = Math.min(1, k / fade, (n - k) / fade);
-      const value = Math.sin((2 * Math.PI * part.hz * k) / sampleRate) * envelope * level;
+      const value = Math.sin(phase) * envelope * peak;
       out.writeInt16LE(Math.round(value * 32767), i * 2);
+      phase += (2 * Math.PI * (part.hz + (glide * k) / n)) / sampleRate;
       i++;
     }
     i += samples(part.gapMs ?? 0);
@@ -95,15 +101,27 @@ export const NO_ANSWER_TONE: Tone[] = [
   { hz: 390, ms: 260 },
 ];
 
-/** Stand-in speech for the mock TTS: one short tone per word, so timing and playback can be tested. */
+/**
+ * The mock TTS's voice. The board's small speaker hardly plays anything below about 500 Hz, so it
+ * chirps at 900-1260 Hz, each word gliding 10% down or up (810-1390 Hz in all): well above the error
+ * and no-answer tones (390-660 Hz, each held at one pitch), and at half of full scale, louder than
+ * them (0.3) without clipping.
+ */
+export const MOCK_VOICE = { lowHz: 900, spanHz: 360, glide: 0.1, level: 0.5 } as const;
+
+/** Stand-in speech for the mock TTS: one short chirp per word, so timing and playback can be tested and heard. */
 export function babble(text: string, sampleRate = SPEAKER_RATE): Buffer {
   const words = text.split(/\s+/).filter(Boolean).slice(0, 400);
-  const parts = words.map((word, i) => ({
-    hz: 180 + ((word.length * 37 + i * 53) % 160),
-    ms: 90 + Math.min(word.length, 10) * 15,
-    gapMs: 50,
-  }));
-  return tones(parts, sampleRate, 0.2);
+  const parts = words.map((word, i) => {
+    const hz = MOCK_VOICE.lowHz + ((word.length * 37 + i * 53) % MOCK_VOICE.spanHz);
+    return {
+      hz,
+      toHz: hz * (i % 2 ? 1 + MOCK_VOICE.glide : 1 - MOCK_VOICE.glide), // like a voice, it doesn't hold one pitch
+      ms: 90 + Math.min(word.length, 10) * 15,
+      gapMs: 50,
+    };
+  });
+  return tones(parts, sampleRate, MOCK_VOICE.level);
 }
 
 /** Root-mean-square level of 16-bit PCM, from 0 to 1. */

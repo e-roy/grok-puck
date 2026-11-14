@@ -4,10 +4,10 @@
 //   pnpm fake-device [--url ws://127.0.0.1:8787/device] [--id fake-desk-01] [--play]
 //                    [--networks "Home Wi-Fi,Phone hotspot"] [--firmware 0.6.1|0.6.0|0.5] [--old-firmware]
 //
-// Then type `talk` (a short tone as the "voice"), `talk some.wav` (16 kHz mono 16-bit WAV),
-// `stop` (stop speech, as a tap does), `signal -70` (its Wi-Fi signal, in dBm) or `quit`. What the
-// bridge plays is saved as WAV files in .fake/out/ (and played with ffplay when --play is given). The
-// device key is kept in .fake/<id>.key. It acts like firmware 0.6.1: it reports its saved Wi-Fi
+// Then type `talk` (a short tone as the "voice"), `talk some.wav` (16 kHz mono 16-bit WAV), `hold`
+// (held until `release` sends it or `cancel` drops it), `stop` (stop speech, as a tap does),
+// `signal -70` (its Wi-Fi signal, in dBm) or `quit`. What the bridge plays is saved as WAV files in
+// .fake/out/ (and played with ffplay when --play is given). The device key is kept in .fake/<id>.key. It acts like firmware 0.6.1: it reports its saved Wi-Fi
 // networks (the first one in use) and shows "speaking" while a Listen page plays its speech.
 // --firmware 0.6.0 acts like 0.6.0 (no "speaking" without its own audio); --firmware 0.5 (or
 // --old-firmware) like firmware before 0.6.0, which reports no networks either.
@@ -97,13 +97,33 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
 
   /** Sends audio as the microphone would: listen.start, 100 ms frames, listen.end. */
   async talk(pcm: Buffer, options: { realtime?: boolean } = {}): Promise<void> {
+    this.startListening();
+    await this.hear(pcm, options);
+    this.endListening();
+  }
+
+  /** A hold began: listen.start (the firmware sends it once a touch counts as a hold). */
+  startListening(): void {
     this.send({ type: 'listen.start', sample_rate: MIC_RATE });
+  }
+
+  /** Microphone audio while held, in 100 ms frames. */
+  async hear(pcm: Buffer, options: { realtime?: boolean } = {}): Promise<void> {
     const frame = (MIC_RATE * 2) / 10;
     for (let at = 0; at < pcm.length; at += frame) {
       this.socket?.send(pcm.subarray(at, at + frame));
       if (options.realtime) await new Promise((resolve) => setTimeout(resolve, 100));
     }
+  }
+
+  /** The finger lifted: send what was heard. */
+  endListening(): void {
     this.send({ type: 'listen.end' });
+  }
+
+  /** The finger lifted with too little voice: nothing is sent. */
+  cancelListening(): void {
+    this.send({ type: 'listen.cancel' });
   }
 
   stopSpeech(): void {
@@ -248,14 +268,36 @@ async function main(): Promise<void> {
     process.exit(code === 1000 ? 0 : 1);
   });
   await device.connect();
-  const commands = 'talk [file.wav] | stop | signal <dBm> | quit';
+  const commands = 'talk [file.wav] | hold | release | cancel | stop | signal <dBm> | quit';
   say(`connected to ${values.url} as ${values.id}. Commands: ${commands}`);
+
+  // `hold`: held until `release` (sent) or `cancel` (dropped), a tone as the voice meanwhile.
+  let holding: NodeJS.Timeout | undefined;
+  const letGo = (send: boolean) => {
+    if (!holding) {
+      say('not holding: type hold first');
+      return;
+    }
+    clearInterval(holding);
+    holding = undefined;
+    if (send) device.endListening();
+    else device.cancelListening();
+    say(send ? 'let go: sent' : 'let go: cancelled, nothing sent');
+  };
 
   const input = readline.createInterface({ input: process.stdin });
   input.on('line', (line) => {
     const [command, ...rest] = line.trim().split(/\s+/);
     const arg = rest.join(' ');
-    if (command === 'signal') {
+    if (command === 'hold') {
+      if (holding) return;
+      device.startListening();
+      const frame = tones([{ hz: 300, ms: 100 }], MIC_RATE);
+      holding = setInterval(() => void device.hear(frame), 100);
+      say('holding: type release to send, or cancel');
+    } else if (command === 'release' || command === 'cancel') {
+      letGo(command === 'release');
+    } else if (command === 'signal') {
       const rssi = Number(arg);
       if (!device.wifi?.current) say('no Wi-Fi network in use (or --firmware 0.5)');
       else if (!Number.isInteger(rssi) || rssi > 0 || rssi < -100) say('signal takes a level in dBm, like: signal -70');

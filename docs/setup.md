@@ -36,7 +36,7 @@ that run the whole loop on one computer: see
 - **Speech services**: one turns the bot's text into speech (TTS), one turns what you say into text
   (STT). Any service with OpenAI's audio API works, for example OpenAI itself, Groq (speech to text),
   or a self-hosted server such as Kokoro (text to speech) or Speaches. TTS and STT can come from
-  different services. You can start with the built-in **Mock** (beeps instead of speech, a fixed
+  different services. You can start with the built-in **Mock** (high chirps instead of speech, a fixed
   transcript) and choose later.
 
 ---
@@ -203,10 +203,11 @@ has **Open the Listen page**), press **Start listening** (browsers play sound on
 set the device's **Speak on** to **The Listen page** or **Both**. Keep the tab open: it plays in the
 background too. Until a Listen page is started, and whenever none is, the device speaks, so nothing is
 lost. While the page plays, the device shows "speaking" (firmware 0.6.1 and later); a tap on it, or the
-page's **Stop**, stops the speech in both places. Mute silences it everywhere; the page uses the
-computer's volume. With several devices, the page has a picker. If your browser puts inactive tabs to
-sleep (Chrome's Memory Saver, Edge's sleeping tabs), add `desk-admin.example.com` to the sites it keeps
-active. On a phone it works while the screen is on.
+page's **Stop**, stops the speech in both places. **Stop listening** turns the page off (the device
+speaks again) without closing the tab. While you hold the device to talk, the page shows "listening".
+Mute silences it everywhere; the page uses the computer's volume. With several devices, the page has a
+picker. If your browser puts inactive tabs to sleep (Chrome's Memory Saver, Edge's sleeping tabs), add
+`desk-admin.example.com` to the sites it keeps active. On a phone it works while the screen is on.
 
 The voice routine's instructions ask the bot to confirm before anything important it heard by voice
 (sending, deleting, buying, publishing), since a transcription can mishear.
@@ -263,7 +264,7 @@ username (work Wi-Fi) can't be joined: use your phone's hotspot there.
 | Speech is quiet | volume | the volume slider on the device's card; the board also has a volume trimmer |
 | Speech doesn't play on the Listen page | the page isn't started, Speak on is the device, or another page started later plays | the page says which: press **Start listening** (or **Play here**), or set **Speak on** on the device's card |
 | The Listen page says "Signed out" | the Cloudflare Access login has ended | reload the page and sign in again |
-| The device doesn't show "speaking" while the Listen page plays, and a tap doesn't stop it | its firmware is older than 0.6.1 | install the latest firmware from the installer (step 4); holding the device still stops the page |
+| The device doesn't show "speaking" while the Listen page plays, and a tap doesn't stop it | its firmware is older than 0.6.1 (the badge next to its name on its card says which) | install the latest firmware from the installer (step 4); holding the device still stops the page |
 | Your words are often misheard | the speech-to-text service | set the language under **Speech**, or try another service: the admin page's **History** shows each transcript |
 
 ## Costs

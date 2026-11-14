@@ -34,8 +34,9 @@ pnpm start
 
 ## Try the whole loop without hardware or Grok Bot
 
-Two stand-ins come with the bridge: a fake device and a fake Grok Bot. Speech starts as "Mock" (beeps
-for speech, a fixed transcript), so nothing else is needed.
+Two stand-ins come with the bridge: a fake device and a fake Grok Bot. Speech starts as "Mock" (a high
+chirp for each spoken word, loud enough for the board's small speaker, and a fixed transcript), so
+nothing else is needed.
 
 1. Admin page → **Grok Bot** → **Create the key**, and copy it.
 2. In a second terminal: `pnpm fake-grokbot --mcp-key <the key>`. It listens for the webhook at
@@ -50,12 +51,13 @@ for speech, a fixed transcript), so nothing else is needed.
    changes its signal.
 5. In the fake device, type `talk`. The fake bot receives the message, shows "working", and answers
    "You said: …", which the fake device plays and saves in `.fake/out/` (add `--play` to hear it through
-   ffplay).
+   ffplay). To hold it as long as you like, type `hold`, then `release` to send or `cancel` to drop it;
+   meanwhile its card in the admin page (and a Listen page) shows "listening".
 6. In the fake bot, type `say Hello there` (the bot speaking on its own) or `status waiting`.
 7. To hear it in the browser instead: open <http://127.0.0.1:8788/listen>, press **Start listening**,
    and set the device's **Speak on** to **The Listen page** in the admin page. Its speech now plays in
    that tab while the fake device shows "speaking"; typing `stop` in the fake device stops it, as a
-   tap on a real one does.
+   tap on a real one does. **Stop listening** on the page hands the speech back to the device.
 
 To hear real voices, set **Speech → Text to speech** to OpenAI-compatible with the speech server's base
 URL (ending in `/v1`), key and model (`kokoro` for Kokoro), then choose a voice for the bot and press
