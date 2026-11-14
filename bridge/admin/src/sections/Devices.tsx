@@ -1,6 +1,6 @@
 // Devices: a highlighted card for each device waiting for approval, and a card per approved device
-// with its look and state, its settings (Speak on among them, with its Listen page), "Try it", its
-// Wi-Fi, and (set apart) Forget all networks and Forget.
+// with its look and state, its firmware version, its settings (Speak on among them, with its Listen
+// page), "Try it", its Wi-Fi, and (set apart) Forget all networks and Forget.
 import { EllipsisVerticalIcon, ExternalLinkIcon, SendIcon, TabletSmartphoneIcon } from 'lucide-react';
 import { useState } from 'react';
 import { api, type Bot, type Device, type SpeakOn } from '@/api.ts';
@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { firmwareVersion } from '@/lib/firmware.ts';
 import { ago, enc } from '@/lib/format.ts';
 import { pushList, readList } from '@/lib/local.ts';
 import { type Run, showError } from '@/lib/run.ts';
@@ -97,6 +98,17 @@ function BotSelect({ id, value, bots, onChange }: { id: string; value: string; b
   );
 }
 
+/** The firmware version, next to the device's name: "0.6.1" from "desk-display/0.6.1", or "unknown". */
+function FirmwareBadge({ firmware }: { firmware: string }) {
+  const version = firmwareVersion(firmware);
+  return (
+    <Badge variant="outline" className="max-w-40 font-normal" title={`Firmware ${version}`}>
+      <span className="sr-only">Firmware </span>
+      <span className={version === 'unknown' ? 'truncate' : 'truncate font-mono'}>{version}</span>
+    </Badge>
+  );
+}
+
 function PendingDevice({ device, bots, run }: { device: Device; bots: Bot[]; run: Run }) {
   const url = `/api/devices/${enc(device.id)}`;
   const [name, setName] = useState(device.name);
@@ -104,12 +116,13 @@ function PendingDevice({ device, bots, run }: { device: Device; bots: Bot[]; run
   return (
     <Card className="border-warning/60 bg-warning/5 ring-warning/40">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex flex-wrap items-center gap-2">
           <StatusDot on={device.waiting} label={device.waiting ? 'online' : 'offline'} />
           New device waiting for approval
+          <FirmwareBadge firmware={device.firmware} />
         </CardTitle>
         <CardDescription>
-          <span className="font-mono">{device.id}</span> · firmware {device.firmware || 'unknown'} · first seen {ago(device.firstSeen)}
+          <span className="font-mono">{device.id}</span> · first seen {ago(device.firstSeen)}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -140,7 +153,8 @@ function PendingDevice({ device, bots, run }: { device: Device; bots: Bot[]; run
         >
           Forget
         </ConfirmButton>
-        {!device.waiting && <span className="text-sm text-muted-foreground">It must be online to be approved.</span>}
+        {/* Not the muted grey: on this card's tinted footer it falls short of 4.5:1. */}
+        {!device.waiting && <span className="text-sm text-foreground/80">It must be online to be approved.</span>}
       </CardFooter>
     </Card>
   );
@@ -178,17 +192,18 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
         <div className="min-w-0 flex-1">
           <CardTitle className="flex flex-wrap items-center gap-2">
             <span className="truncate">{device.name}</span>
+            <FirmwareBadge firmware={device.firmware} />
             {device.muted && <Badge variant="secondary">muted</Badge>}
           </CardTitle>
           <CardDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
             <StatusDot on={online} label={online ? 'online' : 'offline'} />
-            {online ? `Online, ${device.speaking ? `speaking ${WHERE[device.speaking]}` : `showing ${device.showing ?? 'idle'}`}` : `Offline, last seen ${ago(device.lastSeen)}`}
+            {online ? `Online, ${doing(device)}` : `Offline, last seen ${ago(device.lastSeen)}`}
             {!online && device.speaking && `, speaking ${WHERE[device.speaking]}`}
             <span aria-hidden>·</span>
             <span>{bot ? bot.name : 'no bot'}</span>
           </CardDescription>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            <span className="font-mono">{device.id}</span> · {device.firmware || 'firmware unknown'}
+            <span className="font-mono">{device.id}</span>
           </p>
         </div>
         <CardAction>
@@ -303,6 +318,13 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
       </CardFooter>
     </Card>
   );
+}
+
+/** What an online device is doing: listening (held), speaking somewhere, or the state it shows. */
+function doing(device: Device): string {
+  if (device.showing === 'listening') return 'listening';
+  if (device.speaking) return `speaking ${WHERE[device.speaking]}`;
+  return `showing ${device.showing ?? 'idle'}`;
 }
 
 /** Speak on: the device, the Listen page or both; whether a Listen page is ready, and a link to open one. */
