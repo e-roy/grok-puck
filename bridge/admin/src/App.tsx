@@ -1,17 +1,15 @@
 // The admin page: five sections (a sidebar on a computer, a bar at the bottom on a phone), the section
 // kept in the address. Every section stays mounted, so edits survive switching between them.
-import { AudioLinesIcon, BotIcon, HistoryIcon, type LucideIcon, MonitorIcon, MoonIcon, PlugIcon, SunIcon, TabletSmartphoneIcon, TriangleAlertIcon } from 'lucide-react';
+import { AudioLinesIcon, BotIcon, HistoryIcon, type LucideIcon, PlugIcon, TabletSmartphoneIcon, TriangleAlertIcon } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, type Overview } from '@/api.ts';
 import { ErrorBoundary } from '@/components/app/ErrorBoundary.tsx';
 import type { Voices } from '@/components/app/Section.tsx';
+import { ThemeSwitch } from '@/components/app/ThemeSwitch.tsx';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Toaster } from '@/components/ui/sonner';
 import { makeRun } from '@/lib/run.ts';
-import { type ThemeChoice, useTheme } from '@/lib/theme.tsx';
 import { cn } from '@/lib/utils';
 import { Bots } from '@/sections/Bots.tsx';
 import { Devices } from '@/sections/Devices.tsx';
@@ -216,34 +214,5 @@ function BottomBar({ section, waiting }: { section: SectionId; waiting: number }
         </a>
       ))}
     </nav>
-  );
-}
-
-const THEMES: { value: ThemeChoice; label: string }[] = [
-  { value: 'system', label: 'Same as the system' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
-];
-
-function ThemeSwitch() {
-  const { choice, resolved, choose } = useTheme();
-  const Icon = choice === 'system' ? MonitorIcon : resolved === 'dark' ? MoonIcon : SunIcon;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Theme" />}>
-        <Icon />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        {/* Base UI wants a menu's label inside its group: outside one it throws when the menu opens. */}
-        <DropdownMenuRadioGroup value={choice} onValueChange={(v) => choose(v as ThemeChoice)}>
-          <DropdownMenuLabel>Theme</DropdownMenuLabel>
-          {THEMES.map((t) => (
-            <DropdownMenuRadioItem key={t.value} value={t.value} closeOnClick>
-              {t.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

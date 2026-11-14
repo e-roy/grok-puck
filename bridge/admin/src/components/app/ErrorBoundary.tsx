@@ -12,7 +12,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode; where: strin
   }
 
   componentDidCatch(error: Error) {
-    console.error(`The admin page's ${this.props.where} crashed:`, error);
+    console.error(`Something crashed in ${this.props.where}:`, error);
   }
 
   render() {

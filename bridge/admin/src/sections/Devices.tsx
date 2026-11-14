@@ -1,9 +1,9 @@
 // Devices: a highlighted card for each device waiting for approval, and a card per approved device
-// with its look and state, its settings, "Try it", its Wi-Fi, and (set apart) Forget all networks and
-// Forget.
-import { EllipsisVerticalIcon, SendIcon, TabletSmartphoneIcon } from 'lucide-react';
+// with its look and state, its settings (Speak on among them, with its Listen page), "Try it", its
+// Wi-Fi, and (set apart) Forget all networks and Forget.
+import { EllipsisVerticalIcon, ExternalLinkIcon, SendIcon, TabletSmartphoneIcon } from 'lucide-react';
 import { useState } from 'react';
-import { api, type Bot, type Device } from '@/api.ts';
+import { api, type Bot, type Device, type SpeakOn } from '@/api.ts';
 import { Avatar, avatarState } from '@/components/app/Avatar.tsx';
 import { ConfirmButton } from '@/components/app/Confirm.tsx';
 import { SectionHeader, type SectionProps, StatusDot } from '@/components/app/Section.tsx';
@@ -33,6 +33,13 @@ import { Checklist } from './Checklist.tsx';
 import { DeviceWifi } from './DeviceWifi.tsx';
 
 const GREY = { shape: 'blob', color: '#9ca3af' } as const;
+
+const SPEAK_ON: { value: SpeakOn; label: string }[] = [
+  { value: 'device', label: 'The device' },
+  { value: 'page', label: 'The Listen page' },
+  { value: 'both', label: 'Both' },
+];
+const WHERE: Record<SpeakOn, string> = { device: 'on the device', page: 'on the Listen page', both: 'on the device and the Listen page' };
 
 export function Devices({ data, run, voices }: SectionProps) {
   const pending = data.devices.filter((d) => d.status === 'pending');
@@ -167,7 +174,7 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
   return (
     <Card>
       <CardHeader className="flex items-center gap-4">
-        <Avatar avatar={bot?.avatar ?? GREY} size={64} state={avatarState(device.showing, online)} />
+        <Avatar avatar={bot?.avatar ?? GREY} size={64} state={avatarState(device.showing, online, device.speaking !== null)} />
         <div className="min-w-0 flex-1">
           <CardTitle className="flex flex-wrap items-center gap-2">
             <span className="truncate">{device.name}</span>
@@ -175,7 +182,8 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
           </CardTitle>
           <CardDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
             <StatusDot on={online} label={online ? 'online' : 'offline'} />
-            {online ? `Online, showing ${device.showing ?? 'idle'}` : `Offline, last seen ${ago(device.lastSeen)}`}
+            {online ? `Online, ${device.speaking ? `speaking ${WHERE[device.speaking]}` : `showing ${device.showing ?? 'idle'}`}` : `Offline, last seen ${ago(device.lastSeen)}`}
+            {!online && device.speaking && `, speaking ${WHERE[device.speaking]}`}
             <span aria-hidden>·</span>
             <span>{bot ? bot.name : 'no bot'}</span>
           </CardDescription>
@@ -220,7 +228,7 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
           </Field>
           <Field>
             <div className="flex items-center justify-between">
-              <FieldLabel id={id('volume-label')}>Volume</FieldLabel>
+              <FieldLabel id={id('volume-label')}>Volume on the device</FieldLabel>
               <span className="text-sm text-muted-foreground tabular-nums">{volume}</span>
             </div>
             <Slider
@@ -245,6 +253,7 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
             />
             <FieldLabel htmlFor={id('muted')}>Muted</FieldLabel>
           </Field>
+          <SpeakOnField device={device} patch={patch} />
           <Field>
             <FieldLabel htmlFor={id('longest')}>Longest message</FieldLabel>
             <InputGroup>
@@ -296,6 +305,58 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
   );
 }
 
+/** Speak on: the device, the Listen page or both; whether a Listen page is ready, and a link to open one. */
+function SpeakOnField({ device, patch }: { device: Device; patch: (body: object, success?: string) => Promise<boolean> }) {
+  const id = `${device.id}-speak-on`;
+  const { open, ready } = device.listen;
+  const pages = ready
+    ? 'A Listen page is ready for it.'
+    : open
+      ? 'A Listen page is open for it, waiting for Start listening.'
+      : 'No Listen page is open for it.';
+  const meanwhile = device.speakOn !== 'device' && !ready ? ' Until one is ready, the device speaks.' : '';
+  const older = device.speakOn !== 'device' && !device.features.includes('speaking');
+  return (
+    <Field>
+      <FieldLabel htmlFor={id}>Speak on</FieldLabel>
+      <Select
+        items={SPEAK_ON}
+        value={device.speakOn}
+        onValueChange={(v) => {
+          const next = v as SpeakOn | null;
+          if (next && next !== device.speakOn) void patch({ speakOn: next }, `${device.name} speaks ${WHERE[next]}.`);
+        }}
+      >
+        <SelectTrigger id={id} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {SPEAK_ON.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <FieldDescription>
+        {pages}
+        {meanwhile}{' '}
+        <a href={`/listen?device=${enc(device.id)}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-4">
+          Open the Listen page
+          <ExternalLinkIcon className="size-3.5" aria-hidden />
+          <span className="sr-only">(opens a new tab)</span>
+        </a>
+        {older && (
+          <span className="mt-1 block">
+            Its firmware doesn&apos;t show &ldquo;speaking&rdquo; while the page plays, and a tap doesn&apos;t stop the page (holding still
+            does): firmware 0.6.1 and later do both.
+          </span>
+        )}
+      </FieldDescription>
+    </Field>
+  );
+}
+
 function TryIt({ device, run }: { device: Device; run: Run }) {
   const key = `grok-puck-said-${device.id}`;
   const [text, setText] = useState('Hello from the desk bridge.');
@@ -308,7 +369,7 @@ function TryIt({ device, run }: { device: Device; run: Run }) {
   };
   return (
     <Field>
-      <FieldLabel htmlFor={`${device.id}-say`}>Try it: speak a sentence on the device</FieldLabel>
+      <FieldLabel htmlFor={`${device.id}-say`}>Try it: speak a sentence {WHERE[device.speakOn === 'device' || device.listen.ready ? device.speakOn : 'device']}</FieldLabel>
       <InputGroup>
         <InputGroupInput id={`${device.id}-say`} value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && say(text)} />
         <InputGroupAddon align="inline-end">
