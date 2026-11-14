@@ -2,7 +2,8 @@
 // from the admin page, states), the bot's speech played as it streams in, and hold to talk.
 //
 // Touch: hold the screen to talk and let go to send (a hold while the bot speaks stops it first).
-// A tap stops speech, or gets a small reaction.
+// A tap stops speech (here, or on a Listen page while the device shows "speaking"), or gets a small
+// reaction.
 #include <math.h>
 #include <string.h>
 
@@ -36,8 +37,8 @@ static bool on_wifi;
 static bool in_setup;
 static bool link_started;  // on the Wi-Fi task
 static link_status_t link_status = LINK_CONNECTING;
-static face_state_t bridge_state = FACE_IDLE;  // what the bridge last asked for
-static bool speaking;
+static face_state_t bridge_state = FACE_IDLE;  // what the bridge last asked for; SPEAKING: on a Listen page
+static bool speaking;  // playing the bot's speech here
 static bool listening;
 
 static void refresh_face(void) {
@@ -55,7 +56,14 @@ static void refresh_face(void) {
     } else {
         want = bridge_state;
     }
+    face_set_steady(want == FACE_SPEAKING && !speaking);  // no audio here to follow: a steady pulse
     if (face_get_state() != want) face_set_state(want);
+}
+
+// With the LVGL lock held. "speaking" from the bridge lasts until it says otherwise, the link drops,
+// listening starts or the owner taps.
+static void end_speaking_elsewhere(void) {
+    if (bridge_state == FACE_SPEAKING) bridge_state = FACE_IDLE;  // until the bridge says what to show
 }
 
 // ---- the bridge ----
@@ -65,7 +73,10 @@ static void on_status(link_status_t status) {
     net_bridge_link(status != LINK_CONNECTING);  // pending, approved or refused: the bridge answers
     lvgl_port_lock(0);
     link_status = status;
-    if (status == LINK_CONNECTING) speaking = false;
+    if (status == LINK_CONNECTING) {
+        speaking = false;
+        end_speaking_elsewhere();
+    }
     refresh_face();
     lvgl_port_unlock();
 }
@@ -107,8 +118,8 @@ static void on_show(const char *name) {
     static const struct {
         const char *name;
         face_state_t state;
-    } states[] = {{"idle", FACE_IDLE}, {"thinking", FACE_THINKING}, {"working", FACE_WORKING},
-                  {"waiting", FACE_WAITING}, {"error", FACE_ERROR}};
+    } states[] = {{"idle", FACE_IDLE},       {"thinking", FACE_THINKING}, {"working", FACE_WORKING},
+                  {"waiting", FACE_WAITING}, {"error", FACE_ERROR},       {"speaking", FACE_SPEAKING}};
     for (size_t i = 0; i < sizeof(states) / sizeof(states[0]); i++) {
         if (strcmp(name, states[i].name) != 0) continue;
         lvgl_port_lock(0);
@@ -133,6 +144,7 @@ static void on_stop(void) {
     player_stop();
     lvgl_port_lock(0);
     speaking = false;
+    end_speaking_elsewhere();
     refresh_face();
     lvgl_port_unlock();
 }
@@ -218,13 +230,17 @@ static void on_bridge_changed(void) {
 
 // ---- touch ----
 
-// With the LVGL lock held (LVGL callbacks).
+// With the LVGL lock held (LVGL callbacks). Stops speech here and wherever else it plays: the bridge
+// passes the stop on to a Listen page.
 static void stop_speaking(void) {
-    if (!player_stop()) return;
+    const bool here = player_stop();
+    const bool elsewhere = bridge_state == FACE_SPEAKING;
+    if (!here && !elsewhere) return;
     link_send_stop();
     speaking = false;
+    end_speaking_elsewhere();
     refresh_face();
-    ESP_LOGI(TAG, "speech stopped by touch");
+    ESP_LOGI(TAG, "speech stopped by touch%s", here ? "" : " (it was playing on a Listen page)");
 }
 
 static void on_screen(lv_event_t *e) {
@@ -240,7 +256,7 @@ static void on_screen(lv_event_t *e) {
             }
             break;
         case LV_EVENT_SHORT_CLICKED:
-            if (speaking) {
+            if (speaking || bridge_state == FACE_SPEAKING) {
                 stop_speaking();
             } else {
                 face_poke();
@@ -261,6 +277,7 @@ static void on_listen_started(void) {
     player_stop();  // the bridge stops the clip too when listening starts
     lvgl_port_lock(0);
     speaking = false;
+    end_speaking_elsewhere();  // listening stops speech wherever it plays (the bridge does that)
     listening = true;
     refresh_face();
     lvgl_port_unlock();
