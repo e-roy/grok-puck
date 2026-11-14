@@ -128,9 +128,10 @@ re-run the failed job.
 `PROJECT_VER` names a release. A pull request that changes the firmware raises it only if `main`'s
 version has been released already (the tag `v<version>` exists); otherwise it leaves it, since the
 next release carries both changes. The patch number (0.6.0 → 0.6.1) is for fixes and small
-additions; the minor number only for a milestone or a change that needs the bridge updated first;
-1.0.0 comes when the polish milestone (M6) is done. What a device can do is told by `features` in
-its hello, never by comparing versions.
+additions; the minor number only for a milestone or a change that needs the bridge updated first.
+1.0.0 isn't tied to a milestone: it comes only after plenty of testing by people using it, since new
+needs keep turning up and being added. What a device can do is told by `features` in its hello,
+never by comparing versions.
 
 ## The case and stand (OpenSCAD)
 
