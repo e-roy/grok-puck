@@ -6,11 +6,15 @@ below, each under its own licence. Every release and the installer page carry th
 texts in [licenses/](licenses/), and the C library's licence file from the ESP-IDF that built the
 firmware (see picolibc below).
 
-**How this list was made**, from a build with ESP-IDF 6.1.0 and the components pinned in
-[dependencies.lock](dependencies.lock):
+There is one firmware per board (the LCD-1.46 and the AMOLED-1.8), and this file covers them all:
+**Boards** says which firmware contains each part. Every build has every board's components on disk,
+but a board's firmware links only what its own code calls.
 
-- the link maps (`build/desk_display.map` and `build/bootloader/bootloader.map`) name every library
-  and object file that went into the firmware;
+**How this list was made**, from a build of each board with ESP-IDF 6.1.0 and the components pinned
+in [dependencies.lock](dependencies.lock):
+
+- the link maps (`desk_display.map` and `bootloader/bootloader.map` in each board's build folder)
+  name every library and object file that went into each firmware;
 - `esp-idf-sbom create --rem-unused build/project_description.json` (ESP-IDF's SBOM tool, installed
   with ESP-IDF 6.1) lists the same packages, with the versions ESP-IDF's manifests give them;
 - each licence comes from the library's own licence file or from the headers of the files that are
@@ -25,37 +29,41 @@ version of each component in `dependencies.lock`.
 
 ## What the firmware contains
 
-| Part | Version | Licence | Copyright |
-|---|---|---|---|
-| ESP-IDF: the bootloader, drivers, Wi-Fi and network glue, NVS, HTTP server, TLS, timers, logging and the rest of the system | 6.1.0 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD |
-| Espressif's Wi-Fi, PHY and coexistence libraries (binary, part of ESP-IDF) | 6.1.0 | Apache-2.0 | Espressif Systems |
-| ↳ FreeBSD net80211, inside the Wi-Fi library | | BSD-2-Clause | Sam Leffler, Errno Consulting; Atsushi Onoe |
-| FreeRTOS kernel (ESP-IDF's version) | 10.5.1 | MIT | Amazon.com, Inc. or its affiliates |
-| Xtensa HAL and FreeRTOS's Xtensa port | | MIT | Tensilica Inc.; Cadence Design Systems, Inc.; Amazon.com, Inc. or its affiliates |
-| lwIP (TCP/IP), with ESP-IDF's port | 2.2.0 | BSD-3-Clause | Swedish Institute of Computer Science, and the other holders below |
-| wpa_supplicant (Wi-Fi security) | 2.10 | BSD-3-Clause | Jouni Malinen and contributors, and the other holders below |
-| Mbed TLS and TF-PSA-Crypto | 4.1.0 and 1.1.0 | Apache-2.0 (offered as Apache-2.0 OR GPL-2.0-or-later; used under Apache-2.0) | The Mbed TLS Contributors; ARM Limited |
-| Fast PBKDF2, in ESP-IDF's wpa_supplicant glue | | CC0-1.0 | Joseph Birr-Pixton |
-| TLSF memory allocator | | BSD-3-Clause | Matthew Conte |
-| UBSAN runtime | | BSD-2-Clause | Linaro Limited; Jiří Zárevúcky |
-| HTTP Parser | 2.7.0 | MIT | Joyent, Inc. and other Node contributors; based on NGINX by Igor Sysoev |
-| Root certificates (ESP-IDF's certificate bundle, from Mozilla's list as extracted by curl, dated 11 February 2026) | | MPL-2.0 | Mozilla |
-| picolibc (the C library, from the toolchain) | 1.8.10 | BSD-3-Clause and others, per file | Keith Packard, The Newlib Project and others |
-| GCC runtime libraries: libgcc and libstdc++ (toolchain esp-15.2.0_20251204) | 15.2.0 | GPL-3.0-or-later WITH GCC-exception-3.1 | Free Software Foundation, Inc. |
-| LVGL (`lvgl/lvgl`) | 9.6.0~1 | MIT | LVGL Kft |
-| ↳ QR Code generator, in LVGL | | MIT | Project Nayuki |
-| ↳ printf, in LVGL | | MIT | Marco Paland (PALANDesign Hannover) |
-| ↳ Montserrat font (LVGL's Montserrat 14 and 24) | | OFL-1.1 | The Montserrat Project Authors |
-| ↳ Font Awesome 5 Free symbols, in the same LVGL fonts | | OFL-1.1 | Fonticons, Inc. |
-| cJSON (`espressif/cjson`) | 1.7.19~2 | MIT | Dave Gamble and cJSON contributors |
-| `espressif/esp_websocket_client` | 1.8.0 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD |
-| `espressif/esp_lvgl_port` | 2.9.0 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD |
-| `espressif/esp_lcd_spd2010` | 2.0.0~1 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD |
-| `espressif/esp_lcd_touch_spd2010` | 2.1.0 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD |
-| `espressif/esp_lcd_touch` | 1.2.1 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD |
-| `espressif/esp_io_expander_tca9554` | 2.0.3 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD |
-| `espressif/esp_io_expander` | 1.2.1 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD |
-| `espressif/cmake_utilities` | 0.5.3 | Apache-2.0 | used by the build only: none of it is in the firmware |
+| Part | Version | Licence | Copyright | Boards |
+|---|---|---|---|---|
+| ESP-IDF: the bootloader, drivers, Wi-Fi and network glue, NVS, HTTP server, TLS, timers, logging and the rest of the system | 6.1.0 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | both |
+| Espressif's Wi-Fi, PHY and coexistence libraries (binary, part of ESP-IDF) | 6.1.0 | Apache-2.0 | Espressif Systems | both |
+| ↳ FreeBSD net80211, inside the Wi-Fi library | | BSD-2-Clause | Sam Leffler, Errno Consulting; Atsushi Onoe | both |
+| FreeRTOS kernel (ESP-IDF's version) | 10.5.1 | MIT | Amazon.com, Inc. or its affiliates | both |
+| Xtensa HAL and FreeRTOS's Xtensa port | | MIT | Tensilica Inc.; Cadence Design Systems, Inc.; Amazon.com, Inc. or its affiliates | both |
+| lwIP (TCP/IP), with ESP-IDF's port | 2.2.0 | BSD-3-Clause | Swedish Institute of Computer Science, and the other holders below | both |
+| wpa_supplicant (Wi-Fi security) | 2.10 | BSD-3-Clause | Jouni Malinen and contributors, and the other holders below | both |
+| Mbed TLS and TF-PSA-Crypto | 4.1.0 and 1.1.0 | Apache-2.0 (offered as Apache-2.0 OR GPL-2.0-or-later; used under Apache-2.0) | The Mbed TLS Contributors; ARM Limited | both |
+| Fast PBKDF2, in ESP-IDF's wpa_supplicant glue | | CC0-1.0 | Joseph Birr-Pixton | both |
+| TLSF memory allocator | | BSD-3-Clause | Matthew Conte | both |
+| UBSAN runtime | | BSD-2-Clause | Linaro Limited; Jiří Zárevúcky | both |
+| HTTP Parser | 2.7.0 | MIT | Joyent, Inc. and other Node contributors; based on NGINX by Igor Sysoev | both |
+| Root certificates (ESP-IDF's certificate bundle, from Mozilla's list as extracted by curl, dated 11 February 2026) | | MPL-2.0 | Mozilla | both |
+| picolibc (the C library, from the toolchain) | 1.8.10 | BSD-3-Clause and others, per file | Keith Packard, The Newlib Project and others | both |
+| GCC runtime libraries: libgcc and libstdc++ (toolchain esp-15.2.0_20251204) | 15.2.0 | GPL-3.0-or-later WITH GCC-exception-3.1 | Free Software Foundation, Inc. | both |
+| LVGL (`lvgl/lvgl`) | 9.6.0~1 | MIT | LVGL Kft | both |
+| ↳ QR Code generator, in LVGL | | MIT | Project Nayuki | both |
+| ↳ printf, in LVGL | | MIT | Marco Paland (PALANDesign Hannover) | both |
+| ↳ Montserrat font (LVGL's Montserrat 14 and 24) | | OFL-1.1 | The Montserrat Project Authors | both |
+| ↳ Font Awesome 5 Free symbols, in the same LVGL fonts | | OFL-1.1 | Fonticons, Inc. | both |
+| cJSON (`espressif/cjson`) | 1.7.19~2 | MIT | Dave Gamble and cJSON contributors | both |
+| `espressif/esp_websocket_client` | 1.8.0 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | both |
+| `espressif/esp_lvgl_port` | 2.9.0 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | both |
+| `espressif/esp_lcd_spd2010` | 2.0.0~1 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | LCD-1.46 |
+| `espressif/esp_lcd_touch_spd2010` | 2.1.0 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | LCD-1.46 |
+| `espressif/esp_lcd_co5300` | 2.2.0 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | AMOLED-1.8 |
+| `espressif/esp_lcd_touch_ft5x06` | 1.1.1 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | AMOLED-1.8 |
+| `espressif/esp_lcd_touch_cst816s` | 1.1.2 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | AMOLED-1.8 |
+| `espressif/esp_codec_dev` (its ES8311 driver) | 1.6.2 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | AMOLED-1.8 |
+| `espressif/esp_lcd_touch` | 1.2.1 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | both |
+| `espressif/esp_io_expander_tca9554` | 2.0.3 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | both |
+| `espressif/esp_io_expander` | 1.2.1 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | both |
+| `espressif/cmake_utilities` | 0.5.3 | Apache-2.0 | used by the build only: none of it is in the firmware |  |
 
 ## Licence texts
 

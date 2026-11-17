@@ -1,5 +1,6 @@
-// Speaker (PCM5101 DAC + amplifier) and microphone, each on its own I2S channel. All samples are
-// 16-bit mono PCM: 24 kHz out (what the bridge sends), 16 kHz in (what it expects).
+// The board's speaker and microphone (its audio.c, in boards/<id>/). All samples are 16-bit mono PCM:
+// 24 kHz out (what the bridge sends), 16 kHz in (what it expects), on every board. The levels at the
+// end are the same for every board (main/audio_level.c).
 #pragma once
 
 #include <stddef.h>
@@ -12,7 +13,8 @@
 
 esp_err_t audio_init(void);
 
-// 0..100, applied in software (the board's trimmer still sets the analogue level).
+// 0..100, applied in software, on top of the board's own level (the LCD-1.46's trimmer; a fixed codec
+// level on the AMOLED-1.8).
 void audio_set_volume(int percent);
 
 // Blocks until the samples are queued for the speaker.

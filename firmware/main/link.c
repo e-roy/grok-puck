@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "board_config.h"
 #include "cJSON.h"
 #include "esp_crt_bundle.h"
 #include "esp_log.h"
@@ -73,10 +74,16 @@ static void send_hello(void) {
     cJSON_AddStringToObject(m, "device_id", device_id);
     cJSON_AddStringToObject(m, "firmware", firmware);
     if (key[0]) cJSON_AddStringToObject(m, "key", key);
+    // The board (from 0.6.2; spec §4.8). A bridge that doesn't know the field ignores it.
+    cJSON_AddStringToObject(m, "board", BOARD_NAME);
     // What this firmware can do beyond 0.6.0: show "speaking" on request while its speech plays on a
-    // Listen page. A bridge that doesn't know the field ignores it.
+    // Listen page. Then, from 0.6.2, the board's hardware: with a board in the hello, a part that isn't
+    // listed isn't there. A bridge that doesn't know a name ignores it.
     cJSON *features = cJSON_AddArrayToObject(m, "features");
     cJSON_AddItemToArray(features, cJSON_CreateString("speaking"));
+    if (BOARD_HAS_TOUCH) cJSON_AddItemToArray(features, cJSON_CreateString("touch"));
+    if (BOARD_HAS_MICROPHONE) cJSON_AddItemToArray(features, cJSON_CreateString("microphone"));
+    if (BOARD_HAS_SPEAKER) cJSON_AddItemToArray(features, cJSON_CreateString("speaker"));
     xSemaphoreTake(wifi_lock, portMAX_DELAY);
     if (have_wifi) add_wifi(cJSON_AddObjectToObject(m, "wifi"), &wifi);
     xSemaphoreGive(wifi_lock);

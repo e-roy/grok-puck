@@ -89,7 +89,7 @@ jobs:
     name: build
     needs: check
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
     container:
@@ -103,23 +103,29 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Build for esp32s3
+      - name: Build for each board
+        # One build per board (a folder in boards/), each in build/<board>, as in ci.yml.
         run: |
           . "$IDF_PATH/export.sh" > /dev/null
-          idf.py build
+          for dir in boards/*/; do
+            board=$(basename "$dir")
+            echo "::group::$board"
+            idf.py -B "build/$board" -D BOARD="$board" build
+            echo "::endgroup::"
+          done
       - name: The C library's licence, for the licence notices
         # Kept out of the repository: it names its copyright holders, file by file.
-        run: cp "$IDF_PATH/components/esp_libc/COPYING.picolibc" build/
+        run: for dir in build/*/; do cp "$IDF_PATH/components/esp_libc/COPYING.picolibc" "$dir"; done
       - name: Keep the files idf.py flash writes
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: firmware-build
           path: |
-            firmware/build/flash_args
-            firmware/build/*.bin
-            firmware/build/bootloader/bootloader.bin
-            firmware/build/partition_table/partition-table.bin
-            firmware/build/COPYING.picolibc
+            firmware/build/*/flash_args
+            firmware/build/*/*.bin
+            firmware/build/*/bootloader/bootloader.bin
+            firmware/build/*/partition_table/partition-table.bin
+            firmware/build/*/COPYING.picolibc
           if-no-files-found: error
           retention-days: 7
 
@@ -154,14 +160,16 @@ jobs:
         with:
           name: firmware-build
           path: ${{ runner.temp }}/firmware-build
-      - name: Package the page and the release files
+      - name: Package the page and the release files, every board
         env:
           VERSION: ${{ needs.check.outputs.version }}
           PAGE_URL: ${{ needs.check.outputs.page_url }}
-        run: >-
-          node scripts/package.mjs --build "$RUNNER_TEMP/firmware-build" --out dist
-          --version "$VERSION" --commit "$GITHUB_SHA" --repo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
-          --page-url "$PAGE_URL"
+        run: |
+          args=()
+          for dir in "$RUNNER_TEMP"/firmware-build/*/; do args+=(--build "$(basename "$dir")=$dir"); done
+          node scripts/package.mjs "${args[@]}" --out dist \
+            --version "$VERSION" --commit "$GITHUB_SHA" --repo "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            --page-url "$PAGE_URL"
       - name: Keep the page for GitHub Pages (the built page only)
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
@@ -208,17 +216,45 @@ jobs:
             echo "::error::The tag $tag exists already, or GitHub couldn't say: ${err:-it exists}"
             exit 1
           fi
-          files=("$DIR"/release/*)
-          if [ "${#files[@]}" -ne 6 ]; then
-            echo "::error::Expected 6 release files (4 parts, the manifest, the notices), found ${#files[@]}."
+          # What was packaged: per board a manifest and the 4 parts it names, and one notices file for
+          # every board. Each manifest's parts must be there, and nothing else: a board whose
+          # manifest is missing leaves its parts over, and the count below refuses it.
+          shopt -s nullglob
+          manifests=("$DIR"/release/grok-puck-"$VERSION"-*-manifest.json)
+          if [ "${#manifests[@]}" -eq 0 ]; then
+            echo "::error::No board's manifest (grok-puck-$VERSION-<board>-manifest.json) was packaged."
             exit 1
           fi
+          for manifest in "${manifests[@]}"; do
+            parts=$(jq -r '[.builds[].parts[].path] | length' "$manifest")
+            if [ "$parts" -ne 4 ]; then
+              echo "::error::$(basename "$manifest") names $parts parts, not 4."
+              exit 1
+            fi
+            while IFS= read -r part; do
+              if [ ! -f "$DIR/release/$part" ]; then
+                echo "::error::$(basename "$manifest") names $part, which wasn't packaged."
+                exit 1
+              fi
+            done < <(jq -r '.builds[].parts[].path' "$manifest")
+          done
+          if [ ! -f "$DIR/release/grok-puck-$VERSION-notices.txt" ]; then
+            echo "::error::The notices file grok-puck-$VERSION-notices.txt wasn't packaged."
+            exit 1
+          fi
+          expected=$(( 5 * ${#manifests[@]} + 1 ))
+          files=("$DIR"/release/*)
+          if [ "${#files[@]}" -ne "$expected" ]; then
+            echo "::error::Expected $expected release files (a manifest and its 4 parts for each of ${#manifests[@]} boards, and the notices), found ${#files[@]}: a board's manifest or parts are missing, or a file is over."
+            exit 1
+          fi
+          echo "Releasing ${#files[@]} files for ${#manifests[@]} boards."
           # A draft first, so nothing is public until every file is uploaded.
           gh release create "$tag" "${files[@]}" --draft --target "$GITHUB_SHA" \
             --title "Grok Puck $VERSION" --notes-file "$DIR/release-notes.md" --generate-notes
           uploaded=$(gh release view "$tag" --json assets --jq '.assets | length')
-          if [ "$uploaded" -ne 6 ]; then
-            echo "::error::The draft release $tag has $uploaded files, not 6: it stays a draft."
+          if [ "$uploaded" -ne "$expected" ]; then
+            echo "::error::The draft release $tag has $uploaded files, not $expected: it stays a draft."
             exit 1
           fi
           # Publishing creates the tag, on the commit that was built.

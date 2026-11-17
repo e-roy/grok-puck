@@ -77,10 +77,15 @@ comes with tests.
 ## The firmware (ESP-IDF)
 
 The device's firmware, in [firmware/](firmware/): ESP-IDF 6.1 and LVGL 9 for the Waveshare
-ESP32-S3-Touch-LCD-1.46.
+ESP32-S3-Touch-LCD-1.46 and ESP32-S3-Touch-AMOLED-1.8, one build per board. What differs between
+boards sits in `firmware/boards/<id>/` (spec §4.8).
 
-- Build and flash as in [firmware/README.md](firmware/README.md). On Windows, keep the repository in a
-  short path: deep build folders break the 260-character path limit.
+- Build and flash as in [firmware/README.md](firmware/README.md): a plain `idf.py build` is the
+  LCD-1.46; another board is `idf.py -D BOARD=<id> -B <folder> build`. On Windows, keep the
+  repository and the build folders in short paths: deep build folders break the 260-character path
+  limit.
+- A change outside `boards/` reaches every board: build each one (CI does), and say in the pull
+  request which boards you tried it on.
 - Raise `PROJECT_VER` in `firmware/CMakeLists.txt` when the firmware's behaviour changes and
   `main`'s version has been released already ([Versions](#versions)). The admin page shows each
   device's version, and a release is named after it.
@@ -101,9 +106,11 @@ rules as the bridge apply; ESP Web Tools is served from the page's own site, nev
 cd installer
 pnpm install
 pnpm test                                    # the packaging script, the page build, the notices
-pnpm package --build ../firmware/build       # package your firmware build into installer/dist
+pnpm package --build waveshare-lcd-1.46=../firmware/build --build waveshare-amoled-1.8=<its folder>
 pnpm serve                                   # try the page on http://127.0.0.1:8790
 ```
+
+`pnpm package` takes a build of every board.
 
 `pnpm package` runs in the ESP-IDF terminal: it takes the C library's licence file from ESP-IDF.
 
@@ -117,21 +124,22 @@ Releases are built by GitHub Actions, never on someone's computer:
 2. On GitHub: **Actions** → **Release firmware** → **Run workflow**, on `main`.
 
 The workflow ([.github/workflows/release.yml](.github/workflows/release.yml)) refuses a version that
-already has a release or a tag. It builds the firmware, packages it, creates the release `v<version>`
-on the commit it built (the four firmware parts, the installer's manifest and the licence notices,
-with release notes), then deploys the installer page to GitHub Pages. If it fails after creating a
+already has a release or a tag. It builds the firmware for every board, packages it, creates the
+release `v<version>` on the commit it built (each board's four firmware parts and installer manifest,
+and the licence notices, with release notes), then deploys the installer page to GitHub Pages. If it fails after creating a
 draft release, delete the draft before running it again; if only the page's deployment fails,
 re-run the failed job.
 
 ### Versions
 
-`PROJECT_VER` names a release. A pull request that changes the firmware raises it only if `main`'s
-version has been released already (the tag `v<version>` exists); otherwise it leaves it, since the
-next release carries both changes. The patch number (0.6.0 → 0.6.1) is for fixes and small
-additions; the minor number only for a milestone or a change that needs the bridge updated first.
-1.0.0 isn't tied to a milestone: it comes only after plenty of testing by people using it, since new
-needs keep turning up and being added. What a device can do is told by `features` in its hello,
-never by comparing versions.
+`PROJECT_VER` names a release, and every board's firmware has the same version. A pull request that
+changes the firmware raises it only if `main`'s version has been released already (the tag
+`v<version>` exists); otherwise it leaves it, since the next release carries both changes. Each
+release raises the patch number (0.6.1 → 0.6.2), a milestone included; the minor number moves only
+when the maintainer decides that a release is a bigger step. 1.0.0 isn't tied to a milestone: it
+comes only after plenty of testing by people using it, since new needs keep turning up and being
+added. What a device can do is told by `features` in its hello (and its board by `board`), never by
+comparing versions.
 
 ## The case and stand (OpenSCAD)
 
@@ -146,8 +154,8 @@ files together. Say what you printed and how it fit.
 2. Run the checks that apply locally (`pnpm test`, `pnpm check`, `idf.py build`).
 3. Every pull request runs four checks ([.github/workflows/ci.yml](.github/workflows/ci.yml)):
    **bridge** (type check, tests, admin page build), **docker** (the bridge image builds),
-   **firmware** (the ESP-IDF build) and **installer** (its tests, then packaging that firmware build as
-   a release would). All four must pass before merging. The privacy check runs only on your
+   **firmware** (the ESP-IDF build of every board) and **installer** (its tests, then packaging those
+   firmware builds as a release would). All four must pass before merging. The privacy check runs only on your
    computer: whatever reaches a pushed commit has already been published.
 4. In the description, say what changed, how you tested it (with the results), and what still needs
    testing on hardware or with a phone.

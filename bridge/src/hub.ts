@@ -354,6 +354,7 @@ export class DeviceHub {
         timings: { ...DEFAULT_TIMINGS },
         firmware: hello.firmware,
         features: [],
+        board: '',
         firstSeen: now,
         lastSeen: now,
       };
@@ -362,6 +363,7 @@ export class DeviceHub {
     }
     device.firmware = hello.firmware;
     device.features = hello.features ?? []; // none from firmware before 0.6.1
+    device.board = hello.board ?? ''; // none from firmware before 0.6.2, which ran only on the LCD-1.46
     device.lastSeen = now;
     setWifi(device, hello.wifi, now); // none from older firmware: its card shows no Wi-Fi part
     this.store.changed();

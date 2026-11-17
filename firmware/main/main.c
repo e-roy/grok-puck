@@ -32,6 +32,22 @@ static const char *TAG = "desk";
 static settings_t settings;
 static char firmware[48];
 
+// ESP-IDF's Wi-Fi driver and its network glue log every step of joining a network at info level,
+// naming the network, the router's BSSID, the board's MAC and its addresses: from these only warnings
+// and errors show. This firmware's own lines (net, link, setup...) say what happens. To see the
+// driver's lines again while debugging Wi-Fi, set WIFI_DRIVER_LOG_LEVEL to ESP_LOG_INFO
+// (firmware/README.md).
+#define WIFI_DRIVER_LOG_LEVEL ESP_LOG_WARN
+static const char *const WIFI_DRIVER_TAGS[] = {
+    "wifi", "wifi_init", "phy_init", "pp", "net80211", "esp_netif_handlers", "esp_netif_lwip",
+};
+
+static void quiet_wifi_driver_logs(void) {
+    for (size_t i = 0; i < sizeof(WIFI_DRIVER_TAGS) / sizeof(WIFI_DRIVER_TAGS[0]); i++) {
+        esp_log_level_set(WIFI_DRIVER_TAGS[i], WIFI_DRIVER_LOG_LEVEL);
+    }
+}
+
 // What the face should show, from these inputs. Changed only with the LVGL lock held.
 static bool on_wifi;
 static bool in_setup;
@@ -321,8 +337,9 @@ static void audio_task(void *arg) {
 }
 
 void app_main(void) {
+    quiet_wifi_driver_logs();
     snprintf(firmware, sizeof(firmware), "desk-display/%s", esp_app_get_description()->version);
-    ESP_LOGI(TAG, "%s", firmware);
+    ESP_LOGI(TAG, "%s on %s", firmware, BOARD_NAME);
     ESP_ERROR_CHECK(board_init());
     ESP_ERROR_CHECK(audio_init());
     ESP_ERROR_CHECK(settings_init());

@@ -3,6 +3,7 @@
 //
 //   pnpm fake-device [--url ws://127.0.0.1:8787/device] [--id fake-desk-01] [--play]
 //                    [--networks "Home Wi-Fi,Phone hotspot"] [--firmware 0.6.1|0.6.0|0.5] [--old-firmware]
+//                    [--board waveshare-amoled-1.8]
 //
 // Then type `talk` (a short tone as the "voice"), `talk some.wav` (16 kHz mono 16-bit WAV), `hold`
 // (held until `release` sends it or `cancel` drops it), `stop` (stop speech, as a tap does),
@@ -10,7 +11,8 @@
 // .fake/out/ (and played with ffplay when --play is given). The device key is kept in .fake/<id>.key. It acts like firmware 0.6.1: it reports its saved Wi-Fi
 // networks (the first one in use) and shows "speaking" while a Listen page plays its speech.
 // --firmware 0.6.0 acts like 0.6.0 (no "speaking" without its own audio); --firmware 0.5 (or
-// --old-firmware) like firmware before 0.6.0, which reports no networks either.
+// --old-firmware) like firmware before 0.6.0, which reports no networks either. --board <id> acts like
+// firmware 0.6.2 on that board: its hello names the board and its hardware (touch, microphone, speaker).
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
@@ -52,6 +54,8 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
   wifi: WifiReport | undefined;
   /** It shows "speaking" on request while its speech plays elsewhere, as firmware 0.6.1 does. */
   readonly speaking: boolean;
+  /** The board its hello names, as firmware 0.6.2 does (with "speaking" and the board's hardware). */
+  readonly board: string | undefined;
   /** What the bridge last asked it to show. */
   shown: ShownState | undefined;
   /** Every state the bridge asked it to show, including ones its firmware doesn't know. */
@@ -61,12 +65,13 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
   private socket: WebSocket | undefined;
   private playing: { id: string; kind: 'speech' | 'tone'; sampleRate: number; started: number; chunks: Buffer[] } | undefined;
 
-  constructor(options: { url: string; id: string; key?: string; networks?: string[]; speaking?: boolean }) {
+  constructor(options: { url: string; id: string; key?: string; networks?: string[]; speaking?: boolean; board?: string }) {
     super();
     this.url = options.url;
     this.id = options.id;
     this.key = options.key;
-    this.speaking = options.speaking ?? false;
+    this.board = options.board;
+    this.speaking = options.board !== undefined || (options.speaking ?? false);
     if (options.networks) {
       const saved = options.networks.slice(0, 5);
       this.wifi = { saved, current: saved[0] ?? null, rssi: saved.length ? -58 : null, setup: false };
@@ -78,14 +83,16 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
       const socket = new WebSocket(this.url);
       this.socket = socket;
       socket.once('open', () => {
-        const firmware = this.speaking ? 'fake-device/0.6.1' : this.wifi ? 'fake-device/0.6' : 'fake-device/0.5';
+        const firmware = this.board ? 'fake-device/0.6.2' : this.speaking ? 'fake-device/0.6.1' : this.wifi ? 'fake-device/0.6' : 'fake-device/0.5';
+        const features = this.board ? ['speaking', 'touch', 'microphone', 'speaker'] : ['speaking'];
         this.send({
           type: 'hello',
           device_id: this.id,
           firmware,
           ...(this.key ? { key: this.key } : {}),
           ...(this.wifi ? { wifi: this.wifi } : {}),
-          ...(this.speaking ? { features: ['speaking'] } : {}),
+          ...(this.speaking ? { features } : {}),
+          ...(this.board ? { board: this.board } : {}),
         });
         resolve();
       });
@@ -229,6 +236,7 @@ async function main(): Promise<void> {
       networks: { type: 'string', default: 'Home Wi-Fi,Phone hotspot' },
       firmware: { type: 'string', default: '0.6.1' },
       'old-firmware': { type: 'boolean', default: false },
+      board: { type: 'string' },
     },
   });
   const level = values['old-firmware'] ? '0.5' : values.firmware;
@@ -244,7 +252,11 @@ async function main(): Promise<void> {
   const say = (...parts: unknown[]) => console.log(`[${new Date().toLocaleTimeString()}]`, ...parts);
 
   const networks = level === '0.5' ? undefined : values.networks.split(',').map((n) => n.trim()).filter(Boolean);
-  const device = new FakeDevice({ url: values.url, id: values.id, key, networks, speaking: level === '0.6.1' });
+  if (values.board !== undefined && (level !== '0.6.1' || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(values.board))) {
+    console.error('--board takes a board id such as waveshare-amoled-1.8, and acts like firmware 0.6.2 (not with --firmware 0.6.0 or 0.5)');
+    process.exit(1);
+  }
+  const device = new FakeDevice({ url: values.url, id: values.id, key, networks, speaking: level === '0.6.1', board: values.board });
   device.realtime = true;
   device.on('pending', () => say(`waiting for approval: approve "${values.id}" in the admin page`));
   device.on('welcome', (newKey) => {
