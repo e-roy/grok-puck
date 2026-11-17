@@ -3,10 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Everything comes from this site: the page, ESP Web Tools and the firmware. No other server. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <!-- Everything comes from this site: the page, ESP Web Tools and the firmware. No other server.
+       style-src: this site, and ESP Web Tools' own inline <style> by its hash (scripts/package.mjs
+       computes it from the ESP Web Tools it copies), never 'unsafe-inline'. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src {{STYLE_SRC}}; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
   <meta name="color-scheme" content="light dark">
-  <meta name="description" content="Install the Grok Puck desk display firmware on a Waveshare ESP32-S3-Touch-LCD-1.46 from Chrome, Edge or Firefox, without installing anything.">
+  <meta name="description" content="Install the Grok Puck desk display firmware on a Waveshare ESP32-S3-Touch-LCD-1.46 or ESP32-S3-Touch-AMOLED-1.8 from Chrome, Edge or Firefox, without installing anything.">
   <title>Install Grok Puck</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
@@ -25,8 +27,8 @@
 
   <main>
     <h1>Install the Grok Puck firmware</h1>
-    <p class="lead">Put the desk display's firmware on a Waveshare ESP32-S3-Touch-LCD-1.46 from this
-      page, with nothing to install on your computer.</p>
+    <p class="lead">Put the desk display's firmware on a Waveshare ESP32-S3-Touch-LCD-1.46 or
+      ESP32-S3-Touch-AMOLED-1.8 from this page, with nothing to install on your computer.</p>
 
     <section aria-labelledby="need">
       <h2 id="need">What you need</h2>
@@ -34,27 +36,28 @@
         <li><strong>Chrome, Edge or Firefox (151 or newer) on a computer</strong> (Windows, macOS or
           Linux): installing uses Web Serial, which they have. Firefox first asks you to allow it for
           this site. The page offers Install only in a browser that can do it.</li>
-        <li>The board, and a <strong>USB-C cable that carries data</strong>: some cables only charge.
-          The board needs no driver.</li>
+        <li>One of the two boards below, and a <strong>USB-C cable that carries data</strong>: some
+          cables only charge. The boards need no driver.</li>
       </ul>
     </section>
 
     <section aria-labelledby="install" class="install">
       <h2 id="install">Install</h2>
-      <!-- The steps and the button show only once ESP Web Tools has found Web Serial on a secure page
-           (it marks the element install-supported); otherwise its message for that browser shows. -->
+      <!-- The steps and the buttons show only once ESP Web Tools has found Web Serial on a secure
+           page (it marks its elements install-supported); otherwise its message for that browser
+           shows, once, from the browser check below. -->
       <ol class="steps">
         <li>Plug the board into the computer. Close anything else that uses its port, such as
           <code>idf.py monitor</code>.</li>
-        <li>Press <strong>Install</strong> and choose the board's port (on Windows it is called
-          "USB JTAG/serial debug unit").</li>
+        <li>Press <strong>Install</strong> under your board, and choose the board's port (on Windows
+          it is called "USB JTAG/serial debug unit" or "USB Serial Device").</li>
         <li>Choose <strong>Install Grok Puck</strong>. Leave <strong>Erase device</strong> unticked
           to keep the device's settings, press <strong>Next</strong>, then <strong>Install</strong>.
           It takes about two minutes: keep this tab in front meanwhile.</li>
       </ol>
-      <esp-web-install-button manifest="firmware/manifest.json">
+      <esp-web-install-button class="browser-check">
         <p class="checking">Checking whether this browser can install…</p>
-        <button slot="activate" type="button" class="button">Install Grok Puck {{VERSION}}</button>
+        <span slot="activate" hidden></span>
         <div slot="unsupported" class="notice">
           <p><strong>This browser can't install firmware.</strong> Installing needs Web Serial, which
             this browser doesn't have. Open this page in Chrome, Edge or Firefox (151 or newer) on a
@@ -70,6 +73,39 @@
         <div class="notice"><p><strong>The installer needs JavaScript.</strong> Turn it on for this
           page, then reload it.</p></div>
       </noscript>
+
+      <div class="boards">
+        <article class="board" aria-labelledby="board-lcd-146">
+          <svg class="board-picture" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+            <circle cx="60" cy="60" r="54" class="board-body"/>
+            <circle cx="60" cy="60" r="46" class="board-screen"/>
+            <ellipse cx="50" cy="58" rx="5" ry="10" class="board-eye"/>
+            <ellipse cx="70" cy="58" rx="5" ry="10" class="board-eye"/>
+          </svg>
+          <h3 id="board-lcd-146">ESP32-S3-Touch-LCD-1.46</h3>
+          <p>Round, 1.46" across the screen. It comes as a bare board, for the printed case.</p>
+          <esp-web-install-button manifest="firmware/waveshare-lcd-1.46/manifest.json">
+            <button slot="activate" type="button" class="button">Install for the LCD-1.46</button>
+            <span slot="unsupported"></span>
+            <span slot="not-allowed"></span>
+          </esp-web-install-button>
+        </article>
+        <article class="board" aria-labelledby="board-amoled-18">
+          <svg class="board-picture" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+            <rect x="27" y="6" width="66" height="108" rx="12" class="board-body"/>
+            <rect x="33" y="14" width="54" height="80" rx="5" class="board-screen"/>
+            <ellipse cx="52" cy="52" rx="4" ry="9" class="board-eye"/>
+            <ellipse cx="68" cy="52" rx="4" ry="9" class="board-eye"/>
+          </svg>
+          <h3 id="board-amoled-18">ESP32-S3-Touch-AMOLED-1.8</h3>
+          <p>Rectangular, upright, in its own black case. Its name is on the label on its back.</p>
+          <esp-web-install-button manifest="firmware/waveshare-amoled-1.8/manifest.json">
+            <button slot="activate" type="button" class="button">Install for the AMOLED-1.8</button>
+            <span slot="unsupported"></span>
+            <span slot="not-allowed"></span>
+          </esp-web-install-button>
+        </article>
+      </div>
     </section>
 
     <section aria-labelledby="next">
@@ -81,7 +117,7 @@
           address, then approve the device in the bridge's admin page. If the setup page doesn't open
           by itself on the phone, open <code>http://192.168.4.1</code> in the phone's browser.</li>
         <li><strong>A device that was already set up</strong> restarts with the new firmware and
-          reconnects by itself. Its card in the admin page shows the new version.</li>
+          reconnects by itself. Its card in the admin page shows the new version and its board.</li>
       </ul>
     </section>
 
@@ -105,7 +141,9 @@
         <dt>Still nothing</dt>
         <dd>Try another cable (some only charge) or another USB port.</dd>
         <dt>The screen stays dark after the install</dt>
-        <dd>Unplug the board and plug it in again.</dd>
+        <dd>Unplug the board and plug it in again. If it still stays dark, check that you pressed
+          Install under your own board: each board needs its own firmware. Installing the right one
+          fixes it.</dd>
       </dl>
     </section>
   </main>

@@ -31,15 +31,19 @@ export function image(size, chip = 0x0009) {
   return data;
 }
 
-/** An app image with its app descriptor (esp_app_desc_t) after the image and segment headers. */
-export function app({ version = '0.6.0', chip = 0x0009, size = 64 * 1024, project = 'desk_display' } = {}) {
+/**
+ * An app image with its app descriptor (esp_app_desc_t) after the image and segment headers, and the
+ * board it names (as the firmware's hello does), or several, or none.
+ */
+export function app({ version = '0.6.0', chip = 0x0009, size = 64 * 1024, project = 'desk_display', idf = 'v6.1', boards = ['waveshare-lcd-1.46'] } = {}) {
   const data = image(size, chip);
   const at = 24 + 8;
   data.fill(0, at, at + 256);
   data.writeUInt32LE(0xabcd5432, at);
   data.write(version, at + 16, 'latin1');
   data.write(project, at + 48, 'latin1');
-  data.write('v6.1', at + 112, 'latin1');
+  data.write(idf, at + 112, 'latin1');
+  boards.forEach((board, i) => data.write(`\0${board}\0`, 1024 + 64 * i, 'latin1'));
   return data;
 }
 
@@ -63,16 +67,17 @@ export function partitionTable(partitions = PARTITIONS) {
 }
 
 /**
- * Writes a build folder and returns its path. `files` replaces or adds files by their path in the
- * build; `flashArgs` replaces the parts flash_args lists.
+ * Writes a build folder for a board and returns its path. `files` replaces or adds files by their path
+ * in the build; `flashArgs` replaces the parts flash_args lists; `names` replaces the boards the app
+ * names (its own, by default).
  */
-export function makeBuild({ flashArgs = FLASH_ARGS, files = {}, version, chip, appSize } = {}) {
+export function makeBuild({ board = 'waveshare-lcd-1.46', names = [board], flashArgs = FLASH_ARGS, files = {}, version, chip, appSize, idf } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'grok-puck-build-'));
   const all = {
     'bootloader/bootloader.bin': image(22608, chip),
     'partition_table/partition-table.bin': partitionTable(),
     'ota_data_initial.bin': Buffer.alloc(0x2000, 0xff),
-    'desk_display.bin': app({ version, chip, size: appSize }),
+    'desk_display.bin': app({ version, chip, size: appSize, idf, boards: names }),
     // What CI copies from ESP-IDF next to the build: the C library's licence file.
     'COPYING.picolibc': Buffer.from('Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\nUpstream-Name: picolibc\n'),
     ...files,

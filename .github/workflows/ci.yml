@@ -65,7 +65,7 @@ jobs:
   firmware:
     name: firmware
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     container:
       # Espressif's ESP-IDF v6.1 image (the v6.1 tag, built 2026-08-26), pinned by digest.
       image: espressif/idf:v6.1@sha256:81893c71bb5e570088901f21def8684c25cd2a9020281bd01b843a7655edb18c
@@ -77,32 +77,39 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Build for esp32s3
-        # As in firmware/README.md: idf.py build, with the target set by sdkconfig.defaults. The image's
-        # entrypoint, which sets up ESP-IDF, doesn't run in a job container, so export.sh does it here.
+      - name: Build for each board
+        # As in firmware/README.md: one build per board (a folder in boards/), each in build/<board>,
+        # with the target set by sdkconfig.defaults. The image's entrypoint, which sets up ESP-IDF,
+        # doesn't run in a job container, so export.sh does it here.
         run: |
           . "$IDF_PATH/export.sh" > /dev/null
-          idf.py build
+          for dir in boards/*/; do
+            board=$(basename "$dir")
+            echo "::group::$board"
+            idf.py -B "build/$board" -D BOARD="$board" build
+            echo "::endgroup::"
+          done
       - name: The C library's licence, for the licence notices
         # Kept out of the repository: it names its copyright holders, file by file.
-        run: cp "$IDF_PATH/components/esp_libc/COPYING.picolibc" build/
+        run: for dir in build/*/; do cp "$IDF_PATH/components/esp_libc/COPYING.picolibc" "$dir"; done
       - name: Keep the files idf.py flash writes, for the installer check
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: firmware-build
           path: |
-            firmware/build/flash_args
-            firmware/build/*.bin
-            firmware/build/bootloader/bootloader.bin
-            firmware/build/partition_table/partition-table.bin
-            firmware/build/COPYING.picolibc
+            firmware/build/*/flash_args
+            firmware/build/*/*.bin
+            firmware/build/*/bootloader/bootloader.bin
+            firmware/build/*/partition_table/partition-table.bin
+            firmware/build/*/COPYING.picolibc
           if-no-files-found: error
           retention-days: 3
 
   installer:
     name: installer
-    # The tests, then the packaging script on this run's firmware build, exactly as a release runs it:
-    # a change that would break a release (or write over NVS) fails here first.
+    # The tests, then the packaging script on this run's firmware builds, exactly as a release runs it:
+    # a change that would break a release (or write over NVS, or package a board's build as another
+    # board) fails here first.
     needs: firmware
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -131,5 +138,8 @@ jobs:
         with:
           name: firmware-build
           path: ${{ runner.temp }}/firmware-build
-      - name: Package this run's firmware build
-        run: node scripts/package.mjs --build "$RUNNER_TEMP/firmware-build" --out dist
+      - name: Package this run's firmware builds, one per board
+        run: |
+          args=()
+          for dir in "$RUNNER_TEMP"/firmware-build/*/; do args+=(--build "$(basename "$dir")=$dir"); done
+          node scripts/package.mjs "${args[@]}" --out dist
