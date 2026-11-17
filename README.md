@@ -33,7 +33,7 @@ design: [docs/spec.md](docs/spec.md).
 | Part | State |
 |---|---|
 | [Bridge](bridge/) (TypeScript server + admin page) | working, with tests and a fake device / fake Grok Bot; its Listen page plays the bot's speech in a browser tab |
-| [Firmware](firmware/) (ESP-IDF, Waveshare ESP32-S3-Touch-LCD-1.46) | working: Wi-Fi setup from a phone with up to 5 saved networks (for travelling), approval, avatar and states, spoken replies, hold to talk |
+| [Firmware](firmware/) (ESP-IDF, Waveshare ESP32-S3-Touch-LCD-1.46, and the ESP32-S3-Touch-AMOLED-1.8 being tested) | working: Wi-Fi setup from a phone with up to 5 saved networks (for travelling), approval, avatar and states, spoken replies, hold to talk |
 | [Installer](installer/) (web page on GitHub Pages) and [releases](https://github.com/e-roy/grok-puck/releases) | released: v0.6.0 on 13 Nov 2026. Installs the firmware from the browser, keeping the device's settings |
 | Grok Bot setup | working: MCP server, standing instructions and voice routine. Some checks still to run: [docs/grok-bot-setup.md](docs/grok-bot-setup.md) |
 | [Case and stand](hardware/) (3D prints) | slim case and stand designed; an earlier larger case printed and fitting |
@@ -57,9 +57,10 @@ To try it before buying anything, the bridge comes with a fake device and a fake
 ## Hardware
 
 - Waveshare **ESP32-S3-Touch-LCD-1.46** (with cover glass): 1.46" 412×412 round touch display,
-  microphone, speaker, ESP32-S3 with Wi-Fi.
-- A right-angle USB-C cable for power.
-- A printed case and a 15° desk stand (PLA).
+  microphone, speaker, ESP32-S3 with Wi-Fi. With a right-angle USB-C cable for power, and a printed
+  case and 15° desk stand (PLA).
+- Or, being tested: the Waveshare **ESP32-S3-Touch-AMOLED-1.8**, a 368×448 AMOLED with microphone and
+  speaker that comes in its own case.
 
 Full BOM, print settings and the OpenSCAD sources: [hardware/](hardware/).
 

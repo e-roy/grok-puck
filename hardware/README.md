@@ -13,6 +13,20 @@
 The earlier, larger case (`case-v1/`) uses **3 × M2×8 pan-head self-tapping screws** instead, into
 2.1 mm pilot holes.
 
+### Second board: the AMOLED-1.8 *(being tested)*
+
+The firmware also runs on the Waveshare **ESP32-S3-Touch-AMOLED-1.8**, which comes in its own case, so
+nothing needs printing. It has its own firmware build and its own Install button on the installer page
+(spec §4.8).
+
+| Qty | Part | Notes | Where to buy |
+|---|---|---|---|
+| 1 | Waveshare **ESP32-S3-Touch-AMOLED-1.8** | 1.8" 368×448 AMOLED touch display (not round), ESP32-S3 (8 MB PSRAM, 16 MB flash), ES8311 codec with microphone and speaker, in a black case. V1 (SH8601 + FT3168) and V2 (CO5300 + CST820, from 30 May 2026) share one build; only V2 is tested so far. The version without a battery is enough: the device runs on USB power | *link coming soon* |
+| 1 | USB-C cable and 5 V USB power supply | as for the LCD-1.46 | *link coming soon* |
+
+Being tested: the face, touch, speaking and listening, and Wi-Fi setup on a V2 board in its case.
+Whether it needs a stand on the desk isn't decided yet.
+
 ## Prints
 
 All parts: PLA, 0.4 mm nozzle, 0.20 mm layers, no supports, oriented as exported.

@@ -4,7 +4,9 @@
 what works.** Agreed on 12 Nov 2026 and not built yet: **xAI as a speech service** (§5.6.1). Built on
 13 Nov 2026: the **Listen page** for hearing the bot on a computer (§5.10, milestone M7, with firmware
 0.6.1), with "listening" and **Stop listening** added on 14 Nov 2026. **Firmware releases and the web
-installer** (§4.7, milestone M9) are built, and v0.6.0 was released on 13 Nov 2026. Items marked
+installer** (§4.7, milestone M9) are built, and v0.6.0 was released on 13 Nov 2026. Agreed and built
+on 15 Nov 2026: **boards and what they can do** (§4.8, milestone M10), with a second board, the
+Waveshare ESP32-S3-Touch-AMOLED-1.8 (firmware 0.6.2, being tested). Items marked
 *(proposal)* are suggestions you can change; items marked *(to test)* depend on how Grok Bot actually
 behaves, and get checked at milestone M2.
 
@@ -95,16 +97,22 @@ configuration.
 ## 4. Device
 
 ### 4.1 Hardware
-- Waveshare **ESP32-S3-Touch-LCD-1.46** (cover-glass version): ESP32-S3R8 (8 MB PSRAM, 16 MB flash),
-  1.46" 412x412 round display, SPD2010 controller over QSPI, SPD2010 touch over I2C, I2S microphone,
-  PCM5101 DAC + amplifier + onboard speaker, QMI8658 motion sensor, TCA9554 I/O expander.
-- USB-C power only. Slim printed case and a 15° desk stand; a right-angle USB-C cable runs out the back.
-- Pins are in Waveshare's documentation; board bring-up follows Waveshare's examples. Note: the SPD2010
-  needs every redraw area aligned to 4-pixel columns.
+Two boards so far, each with its own firmware build (§4.8):
+- Waveshare **ESP32-S3-Touch-LCD-1.46** (cover-glass version), the first board: ESP32-S3R8 (8 MB
+  PSRAM, 16 MB flash), 1.46" 412x412 round display, SPD2010 controller over QSPI, SPD2010 touch over
+  I2C, I2S microphone, PCM5101 DAC + amplifier + onboard speaker, QMI8658 motion sensor, TCA9554 I/O
+  expander. USB-C power only. Slim printed case and a 15° desk stand; a right-angle USB-C cable runs
+  out the back. Note: the SPD2010 needs every redraw area aligned to 4-pixel columns.
+- Waveshare **ESP32-S3-Touch-AMOLED-1.8** *(being tested)*: the same chip, a 1.8" 368x448 AMOLED (not
+  round), an ES8311 codec with a speaker and microphone, in its own case (§4.8). Its display needs
+  redraw areas on even rows and columns.
+- Pins are in Waveshare's documentation; board bring-up follows Waveshare's examples.
 
 ### 4.2 Firmware stack
 - ESP-IDF 6.1 (in active service until about August 2027; 5.5 is in maintenance), C, LVGL 9, using
   the current drivers only (`i2c_master`, `i2s_std`, `esp_lcd`). Builds and flashes on Windows and macOS.
+- What differs between boards sits behind a board layer (`board.h`, `audio.h`), one folder per board
+  in `firmware/boards/`; the rest of the firmware is the same on every board (§4.8).
 - The face: the bot's avatar body with two eyes, a gaze that moves as if on a sphere, blinks and
   expressions. Any code derived from other open-source projects keeps its licence notice in
   `THIRD_PARTY_NOTICES.md`.
@@ -156,7 +164,10 @@ is no countdown and no silence timeout.
   from a message.
 - The microphone is only open while the screen is held, and playback stops when listening starts, so
   v1 needs no echo cancellation.
-- Volume is set in the admin page; the board's trimmer still works.
+- Volume is set in the admin page, on top of the board's own level: the LCD-1.46's trimmer still
+  works; the AMOLED-1.8 has a fixed codec level.
+- Boards whose speaker and microphone share one clock (the AMOLED-1.8's ES8311) record at 24 kHz and
+  turn it into 16 kHz on the device, so the bridge gets the same audio from every board (§4.8).
 
 ### 4.6 Setup and link
 1. First boot, or after **Forget all networks**: the device starts its own Wi-Fi network
@@ -236,13 +247,15 @@ ESP-IDF as before.
   firmware check; a build from someone's computer is never published. A maintainer starts the
   "Release firmware" workflow (`.github/workflows/release.yml`) by hand, and only from `main`. It takes
   the version from `PROJECT_VER` (`firmware/CMakeLists.txt`), refuses one that already has a release
-  or a tag, builds, creates the GitHub Release `v<version>` on the commit it built (the four firmware
-  parts, the installer's manifest and the licence notices), then deploys the installer page to GitHub
-  Pages. Running from `main` keeps the `github-pages` environment's default rule (deploys from `main`
-  only). How to make one: CONTRIBUTING.md.
-- **The installer page** (`installer/`, on GitHub Pages) uses ESP Web Tools: one **Install** button,
-  through Web Serial, in Chrome, Edge or Firefox (151 or newer) on a computer. The board's USB is its
-  native USB Serial/JTAG, so no driver is needed. Install is offered only where it works (Web Serial,
+  or a tag, builds every board, creates the GitHub Release `v<version>` on the commit it built (each
+  board's four firmware parts and installer manifest, and the licence notices: 11 files for two
+  boards), then deploys the installer page to GitHub Pages. Running from `main` keeps the
+  `github-pages` environment's default rule (deploys from `main` only). How to make one:
+  CONTRIBUTING.md.
+- **The installer page** (`installer/`, on GitHub Pages) uses ESP Web Tools: an **Install** button
+  for each board, each with its own manifest (§4.8), through Web Serial, in Chrome, Edge or Firefox
+  (151 or newer) on a computer. The boards' USB is the chip's own USB Serial/JTAG, so no driver is
+  needed. Install is offered only where it works (Web Serial,
   on a secure page); elsewhere the page says which browser to use. ESP Web Tools is installed with
   pnpm and served from the page's own site, never from a CDN: a page that writes firmware to people's
   boards runs no code from another server, and its Content-Security-Policy allows only its own site.
@@ -250,7 +263,8 @@ ESP-IDF as before.
   build's own offsets (bootloader 0x0, partition table 0x8000, OTA boot data 0xf000, app 0x20000), never
   one merged image: NVS (0x9000-0xf000: the Wi-Fi networks, bridge address and device key) is never
   written. The packaging script (`installer/scripts/package.mjs`) refuses a build in which a part would
-  reach into any partition but its own. After the install the board restarts by itself and reconnects.
+  reach into any partition but its own, on every board. After the install the board restarts by itself
+  and reconnects.
 - **Erase device**, offered by the installer before it writes, erases the whole flash first: a clean
   start, for the first install over Waveshare's demo firmware or to set a device up again. It replaces
   `idf.py erase-flash flash` for people without ESP-IDF.
@@ -262,7 +276,131 @@ ESP-IDF as before.
 - **Developers** build and flash with ESP-IDF (`firmware/README.md`), in a folder outside any
   cloud-synced directory: a build makes thousands of files.
 - No backup of the factory firmware is made. The way back to it is Waveshare's demo image
-  (`Firmware/ESP32-S3-Touch-LCD-1.46.bin` in their examples repo).
+  (`Firmware/ESP32-S3-Touch-LCD-1.46.bin` in their examples repo for the LCD-1.46; the AMOLED-1.8's
+  examples repo has its own demo firmware).
+
+### 4.8 Boards and what they can do *(agreed 15 Nov 2026; the AMOLED-1.8 built with firmware 0.6.2)*
+
+The firmware runs on more than one board. What differs between boards sits behind a small board
+layer, so the face, the link, Wi-Fi setup, speaking and listening are the same code on every board.
+The first step is a second board, the AMOLED-1.8; boards that lack a speaker or a microphone are
+described below but not built yet.
+
+| Board | Its id | Screen | Touch | Audio | Status |
+|---|---|---|---|---|---|
+| Waveshare ESP32-S3-Touch-LCD-1.46 | `waveshare-lcd-1.46` | round LCD, 412×412 (SPD2010) | SPD2010 | PCM5101 DAC with amplifier and speaker; I2S microphone | the first board |
+| Waveshare ESP32-S3-Touch-AMOLED-1.8 | `waveshare-amoled-1.8` | AMOLED, 368×448, upright, not round: SH8601 (V1) or CO5300 (V2) | FT3168 (V1) or CST820 (V2) | ES8311 codec: speaker (NS4150B amplifier) and an analogue microphone | being tested |
+
+Both have an ESP32-S3R8 (8 MB PSRAM), 16 MB flash, USB-C (the chip's own USB Serial/JTAG) and BOOT on
+GPIO0. The AMOLED-1.8 comes in its own case, with an AXP2101 power manager (battery connector, PWR
+button) and a TCA9554 I/O expander for the display's and touch's resets.
+
+**The board layer.**
+- `firmware/main/` is the same for every board. `board.h` and `audio.h` are what it asks of a board:
+  start the display, touch and LVGL; set the brightness; read BOOT; start the speaker and microphone;
+  play 24 kHz and record 16 kHz, 16-bit mono; set the volume.
+- `firmware/boards/<id>/` holds one board: `board.c` (display, touch, power, brightness), `audio.c`
+  (speaker and microphone), `board_config.h` (its id, its screen size, what it has, whether it is an
+  OLED) and settings of its own (`sdkconfig.defaults`), if any.
+- Every board's components are listed in `main/idf_component.yml` and pinned in the one
+  `dependencies.lock`, so every build has them all on disk: the component manager deletes from
+  `managed_components/` whatever a build doesn't list, which would break the other boards' build
+  folders. A board's firmware links only what its own code calls (`firmware/NOTICES.md` says which).
+- One firmware build per board, chosen when the build folder is set up: a plain `idf.py build` builds
+  the LCD-1.46 into `build/`, as before; another board is chosen with `-D BOARD=<id>`, in a build
+  folder of its own (`idf.py -D BOARD=waveshare-amoled-1.8 -B <folder> build`, firmware/README.md).
+  CMake keeps the board in that folder, so flash and monitor need only `-B`, and a folder can't be
+  switched to another board. The LCD-1.46 keeps its `sdkconfig` next to the project, as before; other
+  boards keep theirs in their build folder. On Windows the folder needs a short path: the 260-character
+  limit is close.
+- Every board has the same flash layout (`partitions.csv`) and keeps the same things in NVS, so an
+  install keeps the settings on every board, and the packaging script checks every board's build the
+  same way (§4.7).
+
+**Revisions within a model** share one build when the firmware can tell them apart at start-up.
+The AMOLED-1.8's V1 (SH8601 + FT3168) and V2 (shipped from 30 May 2026: CO5300 + CST820) differ in the
+touch chip, which answers on I2C at 0x38 (FT3168) or 0x15 (CST820), as in Waveshare's examples. Both
+displays take the same commands (Waveshare's board support drives both with one driver); on V2 the
+picture starts 16 columns in. The revision found goes in the log. A model whose revisions can't be
+told apart that way would get a build per revision. Only V2 has been tried so far; V1's touch chip is
+found the same way, but untested.
+
+**What a device tells the bridge** (firmware 0.6.2): its hello gains its board, and its hardware in
+`features`, next to what the firmware can do (`speaking`):
+
+```json
+{ "type": "hello", "device_id": "desk-a1b2c3", "firmware": "desk-display/0.6.2",
+  "board": "waveshare-amoled-1.8", "features": ["speaking", "touch", "microphone", "speaker"] }
+```
+
+A hello with a `board` lists all the hardware the board has; firmware before 0.6.2 sends no board
+(it only ran on the LCD-1.46), and has touch, a microphone and a speaker. Older bridges ignore both
+fields. In this step the bridge keeps the board with the device and the admin card shows it as a
+badge next to the firmware ("AMOLED-1.8", with the full name on hover); nothing else in the bridge
+changes, since both boards have everything.
+
+**Later, not built: boards without a speaker or a microphone.**
+- **No speaker:** Speak on is fixed to the Listen page, and the card says why; the device still shows
+  "speaking" while the page plays, and nothing waits for the device to speak. The error and no-answer
+  tones play on the page.
+- **No microphone:** holding the screen gives the poke reaction, and the card says to talk to the bot
+  in the Grok app (typed, or with the app's dictation). There is no talking through the computer: the
+  Listen page doesn't record.
+- **No touch:** not supported (a tap stops speech and a hold talks).
+
+**The face on other screens.** The face is drawn for a 412 px circle. On another screen it scales by
+the screen's shorter side over 412 and sits in the middle; everything scales together, its movements
+too (the gaze, the wobble, the orbiting dots).
+- On the LCD-1.46 every number is the same as before.
+- On the AMOLED-1.8 (368 wide) it is 0.89 times the size: a 268 px body in a 354 px ring, filling the
+  width, with about 47 px of black above and below.
+- Later sizes follow the same rule: a round screen fills its circle, a landscape screen its height.
+- The setup screen keeps its layout (about 300 × 330 px), which fits both screens.
+- An AMOLED's black is off, so the face looks as it does on the LCD. Its brightness is a panel command
+  rather than a backlight (`board_set_backlight` sends it), and the panel stays dark until the first
+  frame is drawn.
+- An OLED wears where pixels stay lit, and the body would sit in one place all day. On OLED boards
+  (`BOARD_OLED` in `board_config.h`) the whole face drifts slowly around a small loop, a pixel at a
+  time, never more than 6 design pixels from the centre (11 minutes across, 17 up and down). The
+  LCD-1.46 doesn't move. Dimming comes later (M6).
+
+**Audio on the AMOLED-1.8.** The ES8311 plays and records on one I2S port with one clock, so both
+directions run at 24 kHz: speech plays as it arrives, and the microphone's 24 kHz is turned into
+16 kHz on the device (a 2:3 resampling filter), so the bridge gets what it gets from the LCD-1.46.
+The admin page's volume scales the samples, as on the LCD-1.46, on top of a fixed codec level for the
+board. The microphone gain is fixed for the board so that voice levels match what listening expects
+(§4.5: a quiet room at -35 to -44 dB, a voice at -15 to -23 dB). GPIO46 switches its amplifier on.
+
+**Power.** The AXP2101's power-on settings already power the ESP32-S3, the display and the audio
+(read on a V2 board: DCDC1 and ALDO1 on at 3.3 V, every other rail off), so the firmware leaves it
+alone. Its PWR button turns the board off and on by itself; the firmware doesn't use it. Running from
+a battery is not part of this step.
+
+**Installing (§4.7).** USB can't tell ESP32-S3 boards apart, so the installer page has one Install
+button per board, each with its own manifest, the board's name and a drawing of it (a round puck; a
+rectangle in its case). The page says how to tell them apart: the LCD-1.46 is round; the AMOLED-1.8 is
+rectangular, and its name is on the label on its back. A wrong choice doesn't start: the screen stays
+dark, and installing the right one fixes it.
+- Each manifest's name says its board ("Grok Puck for ESP32-S3-Touch-AMOLED-1.8").
+- The page says once if the browser can't install (a browser check of its own), rather than under
+  every board's button.
+- Release files per board: `grok-puck-<version>-<id>-<part>.bin` (the four parts) and
+  `grok-puck-<version>-<id>-manifest.json`, plus one notices file for both boards: 11 files.
+- The packaging script refuses a build that is for another board than the one it is packaged as (the
+  app names its board), and a release that lacks a board.
+
+**What is ported for a board, and what is tested on it.**
+- Ported for the AMOLED-1.8: display and brightness, touch (tap and hold), the speaker with the admin
+  page's volume, the microphone, BOOT for download mode. Not used: the QMI8658 motion sensor, the
+  PCF85063 clock, the TF slot, the battery and the PWR button.
+- Tested on each new board before it goes in the BOM: the face fills the screen and shows every
+  state; tap and hold; speech at a usable volume across the volume range (the mock voice and a real
+  one); the microphone's level and speech-to-text; Wi-Fi setup from a phone; approval; an install from
+  its own button keeps the settings, and Erase starts clean; the right revision is found; in its case,
+  USB-C, BOOT, the speaker and the microphone work through it.
+
+**CI and releases** build every board: the `firmware` check builds each board in turn, `installer`
+packages them all, and every release carries every board's files. The check names stay as they are.
 
 ---
 
@@ -302,7 +440,10 @@ One WebSocket per device: JSON control messages plus binary audio frames.
   - `hello` (device id, firmware version, its key once approved, and from firmware 0.6.0 its Wi-Fi:
     `"wifi": {"saved": ["Home", "Phone"], "current": "Home", "rssi": -58, "setup": false}`, network
     names only; from firmware 0.6.1, what it can do beyond 0.6.0: `"features": ["speaking"]`, it can
-    show "speaking" without playing audio. An older bridge ignores the field);
+    show "speaking" without playing audio; from firmware 0.6.2, its board, `"board":
+    "waveshare-amoled-1.8"`, and that board's hardware in `features`: `"touch"`, `"microphone"`,
+    `"speaker"` (§4.8). An older bridge ignores these fields; a board that doesn't look like an id is
+    dropped, never the hello);
   - `listen.start`, then microphone frames (16 kHz PCM), then `listen.end` or `listen.cancel`;
   - `played` (a clip finished or was stopped);
   - `stop` (the owner touched the screen to stop speech);
@@ -440,7 +581,8 @@ approved device a card with:
   thinking…), online or last seen;
 - the firmware version as a badge next to the device's name ("0.6.1" from the hello's
   "desk-display/0.6.1", "unknown" when there is none; read as "Firmware 0.6.1"), on the card of a
-  device waiting for approval too;
+  device waiting for approval too; and next to it the board as a badge ("AMOLED-1.8", its full name on
+  hover; none for firmware before 0.6.2, §4.8);
 - name (edited in place), bot, volume on the device (slider), mute (switch), longest message;
 - **Speak on** (§5.10): the device, the Listen page or both, and whether a Listen page is open or ready
   for it, with a link to open one (`/listen?device=<id>`, in a new tab). A device whose firmware can't
@@ -487,7 +629,8 @@ New endpoints come only with new features, like Wi-Fi setup and Forget for one n
 on is a device field (`PATCH /api/devices/<id>` with `{"speakOn": "device" | "page" | "both"}`), and
 the overview gives each device `speakOn`, `features`, `speaking` (where its speech plays right now)
 and `listen` (`{"open": 1, "ready": true}`: its Listen pages). Its `showing` is `listening` while the
-owner holds the device (§5.10). The firmware badge is worked out in the page from `firmware`.
+owner holds the device (§5.10). The firmware badge is worked out in the page from `firmware`, and the
+board badge from the device's `board` (`""` before firmware 0.6.2).
 
 ### 5.9 Security
 - Random 256-bit keys. Secrets are entered once and never shown again in full, and never logged.
@@ -631,8 +774,8 @@ measurements (context, reliability, timing) are still to be taken.
   every line it adds). It doesn't run in CI: whatever reaches a pushed commit is already published.
 - **Pull requests run CI** (`.github/workflows/ci.yml`), four checks that main's ruleset requires:
   **bridge** (type check, tests, admin page build), **docker** (the bridge image builds), **firmware**
-  (the ESP-IDF build) and **installer** (its tests, then packaging that firmware build as a release
-  would). Releases: §4.7.
+  (the ESP-IDF build of every board, one after the other) and **installer** (its tests, then packaging
+  those builds as a release would). Releases: §4.7.
 - **Supply chain:** pnpm only, packages at least 7 days old and no install scripts; firmware
   components pinned to exact versions; GitHub Actions pinned to full commit SHAs of releases at least 7
   days old, from GitHub, pnpm and Espressif only.
@@ -657,9 +800,10 @@ measurements (context, reliability, timing) are still to be taken.
 | M7 | Listen page (§5.10) | with Speak on set to the Listen page, a typed chat reply plays in the browser tab while the device shows "speaking"; a tap on the device stops it; with no page ready, the device speaks | built (bridge, Listen page, firmware 0.6.1): tested with the fake device and the fake Grok Bot, in Chrome (a background tab too), and on the board with a local bridge (the steady pulse while the page plays, a tap or a hold stops the page, both places together). v0.6.1 is to be released, and a typed reply through the real Grok Bot to be checked with it |
 | M8 | xAI as a speech service (§5.6.1) | the device speaks with an xAI voice, a voice message is transcribed by xAI, and the tests pass against a fake xAI server | planned, not built |
 | M9 | Firmware releases and the web installer (§4.7) | "Release firmware" publishes `v<version>` with the four parts, the manifest and the notices; the installer page on GitHub Pages installs it from the browser and the device keeps its settings; **Erase device** gives a clean start | released: v0.6.0 on 13 Nov 2026 |
+| M10 | Boards and what they can do (§4.8): a board layer, and the AMOLED-1.8 as a second board | the AMOLED-1.8 shows the face, speaks and listens through a bridge, and is set up from a phone; the LCD-1.46 works as before; CI and a release build both boards; the installer page installs either from its own button | built (firmware 0.6.2): tested on an AMOLED-1.8 V2 with a local bridge; the LCD-1.46 is to be checked on its board before v0.6.2 is released. Boards without a speaker or a microphone are described, not built |
 
 M1 and M2 came first so that any surprise on the Grok Bot side showed up before the firmware was far
-along. M7, M8 and M9 don't depend on each other, so any can come first.
+along. M7, M8, M9 and M10 don't depend on each other, so any can come first.
 
 ## 9. Risks and open points
 
@@ -680,3 +824,6 @@ along. M7, M8 and M9 don't depend on each other, so any can come first.
 | An install could wipe the device's settings | the installer writes the four parts separately and never NVS; the packaging script refuses any build that would reach into another partition, in every pull request and every release |
 | Not every browser can install (Web Serial) | the installer offers Install only where it works and says which browser to use otherwise; tested in Chrome (Edge shares its engine); Firefox 151+ is not tested yet |
 | A published release built from the wrong files | releases are built only by the release workflow, from `main`, in the pinned ESP-IDF container; a version is never released twice |
+| Someone installs the other board's firmware | one button per board, with its name and a drawing; the packaging script refuses a build packaged as the wrong board; a wrong install leaves the screen dark, and installing the right one fixes it |
+| An AMOLED wears where pixels stay lit (burn-in) | on OLED boards the face drifts slowly (§4.8); dimming when idle comes in M6 |
+| A board revision that can't be tested here (the AMOLED-1.8's V1) | it is told apart by its touch chip, as in Waveshare's examples, and uses Waveshare's display commands; it is marked untested until someone tries one |

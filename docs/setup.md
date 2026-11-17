@@ -45,7 +45,8 @@ that run the whole loop on one computer: see
 
 The parts list, with where to buy them, is in [hardware/README.md](../hardware/README.md#bill-of-materials):
 the **Waveshare ESP32-S3-Touch-LCD-1.46** (the cover-glass version), a right-angle USB-C cable, a 5 V
-USB power supply, three M2×4 screws and PLA.
+USB power supply, three M2×4 screws and PLA. Or the **Waveshare ESP32-S3-Touch-AMOLED-1.8** *(being
+tested)*, which comes in its own case: then nothing needs printing.
 
 The case and stand print without supports in PLA. Which files, the print settings and how to put it
 together: [hardware/README.md](../hardware/README.md#prints). Ready-to-print files will be in
@@ -145,27 +146,34 @@ has a voice".
 
 ## 4. Install and connect the device
 
-1. **Install the firmware from the browser:** open the
+1. **Pick your board.** The firmware runs on two Waveshare boards, each with its own firmware:
+   - the **ESP32-S3-Touch-LCD-1.46**: round, a bare board for the printed case
+     ([hardware/README.md](../hardware/README.md));
+   - the **ESP32-S3-Touch-AMOLED-1.8** *(being tested)*: rectangular, upright, in its own black case;
+     its name is on the label on its back.
+2. **Install the firmware from the browser:** open the
    [Grok Puck installer](https://e-roy.github.io/grok-puck/) in Chrome, Edge or Firefox (151 or newer)
-   on a computer, and plug the board in with a USB-C cable that carries data. Press **Install**,
-   choose the board's port (on Windows, "USB JTAG/serial debug unit"), then **Install Grok Puck**.
-   For the first install over Waveshare's demo firmware, tick **Erase device** for a clean start. It
-   takes about two minutes, then the board restarts by itself. The page offers Install only in a
-   browser that can do it, and otherwise says which to use. If the board doesn't connect, hold
-   **BOOT** while plugging it in, then try again.
+   on a computer, and plug the board in with a USB-C cable that carries data. Press **Install** under
+   your board, choose the board's port (on Windows, "USB JTAG/serial debug unit" or "USB Serial
+   Device"), then **Install Grok Puck**. For the first install over Waveshare's demo firmware, tick
+   **Erase device** for a clean start. It takes about two minutes, then the board restarts by itself.
+   The page offers Install only in a browser that can do it, and otherwise says which to use. If the
+   board doesn't connect, hold **BOOT** while plugging it in, then try again. If the screen stays dark
+   afterwards, check that you pressed Install under your own board.
 
    Building and flashing it yourself with ESP-IDF instead (for developers):
    [firmware/README.md](../firmware/README.md#build-and-flash-for-developers).
-2. **Its Wi-Fi, from your phone:** on first start the screen shows a QR code for its setup network,
+3. **Its Wi-Fi, from your phone:** on first start the screen shows a QR code for its setup network,
    `Desk-Setup-XXXX`. Join it with your phone: the setup page usually opens by itself; if it
    doesn't, open `http://192.168.4.1` in your phone's browser. Under **Add a network**, choose your
    Wi-Fi (2.4 GHz only), type its password and press **Add**: the device joins it to check the
    password, and your phone may lose the setup network for a moment (join it again if it doesn't come
    back by itself; the page then shows the result). Then type the bridge address,
    `wss://desk.example.com/device`, and press **Save the address**.
-3. **Approve it:** in the admin page, **Devices** shows the new device. Choose its bot and press
+4. **Approve it:** in the admin page, **Devices** shows the new device. Choose its bot and press
    **Approve** while the device is online: it receives its own key and shows your bot's avatar.
-4. Put it in its case and stand, if you printed them ([assembly](../hardware/README.md#prints)).
+5. Put the LCD-1.46 in its case and stand, if you printed them ([assembly](../hardware/README.md#prints)).
+   The AMOLED-1.8 is in its own case already.
 
 **Check:** on the device's card, **Try it** speaks a sentence on the device, and the **Setup** list
 ticks "A device is approved and has a bot".
