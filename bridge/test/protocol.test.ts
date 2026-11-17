@@ -50,6 +50,21 @@ test('hello says what the firmware can do beyond 0.6.0, and older firmware says 
   assert.ok(odd?.type === 'hello' && odd.features === undefined);
 });
 
+test('hello names its board from firmware 0.6.2, with its hardware in features; one that does not fit is dropped', () => {
+  const hello = { type: 'hello', device_id: 'desk-a1b2c3', firmware: 'desk-display/0.6.2' };
+  const amoled = parse({ ...hello, board: 'waveshare-amoled-1.8', features: ['speaking', 'touch', 'microphone', 'speaker'] });
+  assert.ok(amoled?.type === 'hello');
+  assert.equal(amoled.board, 'waveshare-amoled-1.8');
+  assert.deepEqual(amoled.features, ['speaking', 'touch', 'microphone', 'speaker']);
+  const older = parse({ ...hello, firmware: 'desk-display/0.6.1', features: ['speaking'] }); // no board before 0.6.2
+  assert.ok(older?.type === 'hello' && older.board === undefined);
+  // Not an id: dropped, never the hello.
+  for (const board of ['', 'Waveshare AMOLED', '<b>x</b>', 'x'.repeat(65), 42]) {
+    const odd = parse({ ...hello, board });
+    assert.ok(odd?.type === 'hello' && odd.device_id === 'desk-a1b2c3' && odd.board === undefined, JSON.stringify(board));
+  }
+});
+
 test('a field the bridge does not know is dropped, so a newer hello still works with an older bridge', () => {
   // Bridges before the Listen page parse hello the same way: firmware 0.6.1's "features" is ignored there.
   const hello = parse({ type: 'hello', device_id: 'desk-a1b2c3', firmware: 'desk-display/0.8.0', features: ['speaking'], level: true });

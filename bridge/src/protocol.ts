@@ -1,8 +1,10 @@
 // The device link: one WebSocket per device, JSON text messages plus binary audio frames.
 //
 // Device → bridge
-//   hello          first message: who it is, its key once approved, its Wi-Fi (firmware 0.6.0+), and
-//                  what it can do beyond 0.6.0 (features: "speaking", firmware 0.6.1+)
+//   hello          first message: who it is, its key once approved, its Wi-Fi (firmware 0.6.0+),
+//                  what it can do beyond 0.6.0 (features: "speaking", firmware 0.6.1+), and its board
+//                  with that board's hardware (board: "waveshare-amoled-1.8"; features: "touch",
+//                  "microphone", "speaker"; firmware 0.6.2+)
 //   listen.start   a hold began: the microphone opened; binary frames (16 kHz PCM) follow
 //   listen.end     the finger lifted: send what was heard          listen.cancel   drop it
 //   played         a clip finished (or was stopped on the device)
@@ -54,6 +56,8 @@ export type PageState = ShownState | 'listening';
 export const FEATURE_SPEAKING = 'speaking';
 
 export const DEVICE_ID = /^[A-Za-z0-9:_-]{1,64}$/;
+/** A board's id, as the firmware names it: "waveshare-amoled-1.8". */
+export const BOARD_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 
 /** A device remembers at most this many Wi-Fi networks. */
 export const MAX_NETWORKS = 5;
@@ -77,8 +81,11 @@ export const DeviceMessage = z.discriminatedUnion('type', [
     key: z.string().max(128).optional(),
     // Older firmware sends none. A report that doesn't fit is dropped, so it never stops a hello.
     wifi: WifiReport.optional().catch(undefined),
-    // Firmware 0.6.1 and later: what it can do beyond 0.6.0 ("speaking"). Unknown names are kept.
+    // Firmware 0.6.1 and later: what it can do beyond 0.6.0 ("speaking"); from 0.6.2, its board's
+    // hardware too ("touch", "microphone", "speaker"). Unknown names are kept.
     features: z.array(z.string().max(32)).max(16).optional().catch(undefined),
+    // Firmware 0.6.2 and later: the board it runs on (spec §4.8). One that doesn't fit is dropped.
+    board: z.string().regex(BOARD_ID).optional().catch(undefined),
   }),
   WifiReport.extend({ type: z.literal('wifi') }),
   z.object({ type: z.literal('listen.start'), sample_rate: z.literal(16_000) }),

@@ -26,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { boardBadge } from '@/lib/board.ts';
 import { firmwareVersion } from '@/lib/firmware.ts';
 import { ago, enc } from '@/lib/format.ts';
 import { pushList, readList } from '@/lib/local.ts';
@@ -98,6 +99,18 @@ function BotSelect({ id, value, bots, onChange }: { id: string; value: string; b
   );
 }
 
+/** The board, next to the firmware badge: "AMOLED-1.8", with the full name on hover; none before 0.6.2. */
+function BoardBadge({ board }: { board: string }) {
+  const badge = boardBadge(board);
+  if (!badge) return null;
+  return (
+    <Badge variant="outline" className="max-w-40 font-normal" title={badge.title}>
+      <span className="sr-only">Board </span>
+      <span className="truncate">{badge.label}</span>
+    </Badge>
+  );
+}
+
 /** The firmware version, next to the device's name: "0.6.1" from "desk-display/0.6.1", or "unknown". */
 function FirmwareBadge({ firmware }: { firmware: string }) {
   const version = firmwareVersion(firmware);
@@ -120,6 +133,7 @@ function PendingDevice({ device, bots, run }: { device: Device; bots: Bot[]; run
           <StatusDot on={device.waiting} label={device.waiting ? 'online' : 'offline'} />
           New device waiting for approval
           <FirmwareBadge firmware={device.firmware} />
+          <BoardBadge board={device.board} />
         </CardTitle>
         <CardDescription>
           <span className="font-mono">{device.id}</span> · first seen {ago(device.firstSeen)}
@@ -193,6 +207,7 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
           <CardTitle className="flex flex-wrap items-center gap-2">
             <span className="truncate">{device.name}</span>
             <FirmwareBadge firmware={device.firmware} />
+            <BoardBadge board={device.board} />
             {device.muted && <Badge variant="secondary">muted</Badge>}
           </CardTitle>
           <CardDescription className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">

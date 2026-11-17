@@ -47,8 +47,9 @@ nothing else is needed.
    (**Wi-Fi setup**, **Forget** for each network and **Forget all networks** reach it and show in its
    terminal), and it shows "speaking" while a Listen page plays its speech. `--networks "A,B,C"`
    chooses the names, `--firmware 0.6.0` acts like firmware 0.6.0, `--firmware 0.5` (or
-   `--old-firmware`) like firmware before 0.6.0, which reports no networks, and typing `signal -70`
-   changes its signal.
+   `--old-firmware`) like firmware before 0.6.0, which reports no networks, `--board
+   waveshare-amoled-1.8` like firmware 0.6.2 on that board (its card shows the board), and typing
+   `signal -70` changes its signal.
 5. In the fake device, type `talk`. The fake bot receives the message, shows "working", and answers
    "You said: …", which the fake device plays and saves in `.fake/out/` (add `--play` to hear it through
    ffplay). To hold it as long as you like, type `hold`, then `release` to send or `cancel` to drop it;

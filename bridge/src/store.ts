@@ -49,7 +49,8 @@ export interface Device {
   speakOn: SpeakOn; // with 'page' and no Listen page ready, the device speaks
   timings: Timings;
   firmware: string;
-  features: string[]; // what its firmware can do beyond 0.6.0, from its hello ("speaking": firmware 0.6.1)
+  features: string[]; // what its firmware can do beyond 0.6.0, from its hello ("speaking": firmware 0.6.1), and from 0.6.2 its board's hardware
+  board: string; // the board it runs on, from its hello (firmware 0.6.2+); "" from older firmware
   firstSeen: string;
   lastSeen: string;
   wifi?: DeviceWifi; // absent for firmware that doesn't report it
@@ -178,6 +179,7 @@ function load(file: string): State {
       ...d,
       speakOn: SPEAK_ON.includes(d.speakOn) ? d.speakOn : 'device',
       features: Array.isArray(d.features) ? d.features : [],
+      board: typeof d.board === 'string' ? d.board : '',
       timings: { maxListenMs: d.timings?.maxListenMs ?? DEFAULT_TIMINGS.maxListenMs },
     })),
     speech: {

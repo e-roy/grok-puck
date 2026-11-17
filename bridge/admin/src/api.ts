@@ -32,7 +32,8 @@ export interface Device {
   speakOn: SpeakOn;
   timings: Timings;
   firmware: string;
-  features: string[]; // what its firmware can do beyond 0.6.0 ("speaking": firmware 0.6.1)
+  features: string[]; // what its firmware can do beyond 0.6.0 ("speaking": firmware 0.6.1), and its board's hardware (0.6.2)
+  board: string; // the board it runs on ("waveshare-amoled-1.8"); "" from firmware before 0.6.2
   firstSeen: string;
   lastSeen: string;
   wifi: DeviceWifi | null; // null: its firmware doesn't report its networks
