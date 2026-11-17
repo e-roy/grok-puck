@@ -13,17 +13,33 @@
 
 static const char *TAG = "face";
 
-// Geometry, in pixels on the 412 x 412 panel.
-#define BODY 300          // the avatar image, square
-#define EYE_W 30
-#define EYE_H 68
-#define EYE_GAP 44        // from the centre to each eye
-#define RING 396          // diameter of the status ring
-#define RING_WIDTH 8
-#define ORBIT_R 176       // radius the thinking / working dots travel on
-#define DOT 14
+// The face is drawn for a 412 px circle (the LCD-1.46's panel) and scaled by the screen's shorter side,
+// centred (spec §4.8). On a 412 x 412 screen every size is the design size and SCALE is 1.
+#define DESIGN 412
+#define FIT (BOARD_LCD_WIDTH < BOARD_LCD_HEIGHT ? BOARD_LCD_WIDTH : BOARD_LCD_HEIGHT)
+#define PX(n) (((n) * FIT + DESIGN / 2) / DESIGN)  // a design size in pixels, rounded
+#define SCALE ((float)FIT / DESIGN)                // for movements
+
+// Geometry, in design pixels.
+#define BODY PX(300)      // the avatar image, square
+#define EYE_W PX(30)
+#define EYE_H PX(68)
+#define EYE_GAP PX(44)    // from the centre to each eye
+#define RING PX(396)      // diameter of the status ring
+#define RING_WIDTH PX(8)
+#define ORBIT_R PX(176)   // radius the thinking / working dots travel on
+#define DOT PX(14)
 #define DOTS 3
 #define FRAME_MS 33
+
+#if BOARD_OLED
+// An OLED wears where pixels stay lit, and the body would sit in one place all day: the whole face
+// drifts slowly around a small loop, a pixel at a time, never more than DRIFT_PX from the centre.
+#define DRIFT_PX PX(6)
+#define DRIFT_X_MS (11 * 60 * 1000)  // one loop across, 11 minutes
+#define DRIFT_Y_MS (17 * 60 * 1000)  // and up and down, 17: the path repeats only after hours
+static int32_t drift_x, drift_y;
+#endif
 
 static const char *STATE_NAMES[FACE_STATE_COUNT] = {
     "idle", "listening", "thinking", "working", "waiting", "speaking", "error", "offline",
@@ -187,9 +203,33 @@ static void set_ring(lv_color_t c, lv_opa_t opa, int16_t degrees, int32_t width)
     lv_arc_set_angles(ring, 0, degrees);
 }
 
+// A movement in design pixels, scaled to this screen.
+#define S(v) ((v) * SCALE)
+
+#if BOARD_OLED
+// Moves the ring and body with the drift; the eyes and dots follow it in tick().
+static void drift(int64_t t) {
+    const int32_t x = (int32_t)lroundf(DRIFT_PX * sinf((float)(2 * M_PI) * (float)(t % DRIFT_X_MS) / DRIFT_X_MS));
+    const int32_t y = (int32_t)lroundf(DRIFT_PX * sinf((float)(2 * M_PI) * (float)(t % DRIFT_Y_MS) / DRIFT_Y_MS));
+    if (x == drift_x && y == drift_y) return;
+    drift_x = x;
+    drift_y = y;
+    lv_obj_align(ring, LV_ALIGN_CENTER, x, y);
+    lv_obj_align(body, LV_ALIGN_CENTER, x, y);
+}
+#define DX drift_x
+#define DY drift_y
+#else
+#define DX 0
+#define DY 0
+#endif
+
 static void tick(lv_timer_t *timer) {
     (void)timer;
     const int64_t t = now_ms();
+#if BOARD_OLED
+    drift(t);
+#endif
     const face_state_t s = (face_state_t)atomic_load(&state);
     const int64_t since = t - state_since_ms;
     // The audio level (0..1), smoothed so the ring swells quickly with a voice and fades more slowly.
@@ -204,24 +244,24 @@ static void tick(lv_timer_t *timer) {
 
     switch (s) {
         case FACE_IDLE:
-            gx = 8 * sinf(t / 1700.0f) + 4 * sinf(t / 730.0f);
-            gy = 5 * sinf(t / 1300.0f);
+            gx = S(8) * sinf(t / 1700.0f) + S(4) * sinf(t / 730.0f);
+            gy = S(5) * sinf(t / 1300.0f);
             break;
         case FACE_LISTENING:
             wide = 1.12f;
-            gy = -2 * lv;
+            gy = S(-2) * lv;
             ring_on = true;
-            set_ring(accent(), (lv_opa_t)(90 + 165 * lv), 360, (int32_t)(4 + 20 * lv));
+            set_ring(accent(), (lv_opa_t)(90 + 165 * lv), 360, (int32_t)(S(4) + S(20) * lv));
             break;
         case FACE_THINKING:
-            gx = 10;
-            gy = -14;
+            gx = S(10);
+            gy = S(-14);
             dots_on = true;
             orbit_period = 2400;
             break;
         case FACE_WORKING:
-            gx = 14 * tanhf(4 * sinf(t / 320.0f));
-            gy = -4;
+            gx = S(14) * tanhf(4 * sinf(t / 320.0f));
+            gy = S(-4);
             dots_on = true;
             orbit_period = 900;
             break;
@@ -230,14 +270,14 @@ static void tick(lv_timer_t *timer) {
             set_ring(accent(), (lv_opa_t)(150 + 105 * sinf(t / 260.0f)), 360, RING_WIDTH);
             break;
         case FACE_SPEAKING:
-            gy = -6 * lv;
+            gy = S(-6) * lv;
             wide = 1 + 0.08f * lv;
             ring_on = true;
-            set_ring(accent(), (lv_opa_t)(60 + 195 * lv), 360, (int32_t)(4 + 14 * lv));
+            set_ring(accent(), (lv_opa_t)(60 + 195 * lv), 360, (int32_t)(S(4) + S(14) * lv));
             break;
         case FACE_ERROR:
             open *= 0.45f;
-            if (since < 600) gx = 10 * sinf(since / 30.0f) * (1 - since / 600.0f);
+            if (since < 600) gx = S(10) * sinf(since / 30.0f) * (1 - since / 600.0f);
             ring_on = true;
             set_ring(lv_color_hex(0xef4444), LV_OPA_COVER, 360, RING_WIDTH);
             break;
@@ -251,7 +291,7 @@ static void tick(lv_timer_t *timer) {
     // A poke: a quick squint and a wobble that dies away.
     const int64_t since_poke = t - poke_ms;
     if (since_poke >= 0 && since_poke < 500) {
-        gx += 9 * sinf(since_poke / 45.0f) * (1 - since_poke / 500.0f);
+        gx += S(9) * sinf(since_poke / 45.0f) * (1 - since_poke / 500.0f);
         if (since_poke < 140) open = fminf(open, 0.35f);
     }
 
@@ -261,7 +301,7 @@ static void tick(lv_timer_t *timer) {
         const float base = (float)(2 * M_PI) * (float)(t % (int64_t)orbit_period) / orbit_period;
         for (int i = 0; i < DOTS; i++) {
             const float a = base - i * 0.42f;
-            lv_obj_align(dots[i], LV_ALIGN_CENTER, (int32_t)(ORBIT_R * cosf(a)), (int32_t)(ORBIT_R * sinf(a)));
+            lv_obj_align(dots[i], LV_ALIGN_CENTER, (int32_t)(ORBIT_R * cosf(a)) + DX, (int32_t)(ORBIT_R * sinf(a)) + DY);
             lv_obj_set_style_bg_opa(dots[i], (lv_opa_t)(255 - i * 70), 0);
         }
     }
@@ -271,7 +311,7 @@ static void tick(lv_timer_t *timer) {
     const int32_t ey = (int32_t)(EYE_Y[shape] * BODY / 2 + gy);
     for (int i = 0; i < 2; i++) {
         lv_obj_set_size(eyes[i], w, h);
-        lv_obj_align(eyes[i], LV_ALIGN_CENTER, (int32_t)((i ? EYE_GAP : -EYE_GAP) + gx), ey);
+        lv_obj_align(eyes[i], LV_ALIGN_CENTER, (int32_t)((i ? EYE_GAP : -EYE_GAP) + gx) + DX, ey + DY);
     }
 }
 
