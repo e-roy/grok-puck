@@ -1,11 +1,23 @@
 # Exact versions, each released at least 7 days before it was pinned (the project's supply-chain rule;
 # the component manager has no minimum-age setting). dependencies.lock records what was resolved.
+#
+# Every board's components are listed here, so every build has them all on disk: the component manager
+# deletes from managed_components/ whatever a build doesn't list, which would break the other boards'
+# build folders. Each board links only what its own code calls (firmware/NOTICES.md says which).
 dependencies:
   idf: ">=6.1"
-  espressif/esp_lcd_spd2010: "==2.0.0~1"
-  espressif/esp_lcd_touch_spd2010: "==2.1.0"
+  # Both boards
   espressif/esp_io_expander_tca9554: "==2.0.3"
   espressif/esp_lvgl_port: "==2.9.0"
   lvgl/lvgl: "==9.6.0~1"
   espressif/esp_websocket_client: "==1.8.0"
   espressif/cjson: "==1.7.19~2"
+  # Waveshare ESP32-S3-Touch-LCD-1.46
+  espressif/esp_lcd_spd2010: "==2.0.0~1"
+  espressif/esp_lcd_touch_spd2010: "==2.1.0"
+  # Waveshare ESP32-S3-Touch-AMOLED-1.8: the display (both revisions), touch (V1 FT3168, V2 CST820)
+  # and the ES8311 codec
+  espressif/esp_lcd_co5300: "==2.2.0"
+  espressif/esp_lcd_touch_ft5x06: "==1.1.1"
+  espressif/esp_lcd_touch_cst816s: "==1.1.2"
+  espressif/esp_codec_dev: "==1.6.2"
