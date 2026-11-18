@@ -45,7 +45,7 @@ that run the whole loop on one computer: see
 
 The parts list, with where to buy them, is in [hardware/README.md](../hardware/README.md#bill-of-materials):
 the **Waveshare ESP32-S3-Touch-LCD-1.46** (the cover-glass version), a right-angle USB-C cable, a 5 V
-USB power supply, three M2×4 screws and PLA. Or the **Waveshare ESP32-S3-Touch-AMOLED-1.8** *(being
+USB power supply, three M2×6 screws and PLA. Or the **Waveshare ESP32-S3-Touch-AMOLED-1.8** *(being
 tested)*, which comes in its own case: then nothing needs printing.
 
 The case and stand print without supports in PLA. Which files, the print settings and how to put it
