@@ -9,7 +9,10 @@ ESP-IDF. Design: [docs/spec.md](../docs/spec.md) §4.7, and §4.8 for the boards
   [ESP Web Tools](https://github.com/esphome/esp-web-tools), installed with pnpm and served from the page's
   own site, so the page loads nothing from another server (its Content-Security-Policy says so too).
   It has a card for each board, with a drawing, how to tell it apart and its own **Install** button
-  (its own manifest): USB can't tell the boards apart, so the person picks theirs. Install is offered
+  (its own manifest): USB can't tell the boards apart, so the person picks theirs. A board tested with
+  the project also gets a small "buy it" link on its card, an Amazon affiliate link with the
+  disclosure beside it; the packaging script fills it in, and its tracking ID is `AMAZON_TAG` in
+  `scripts/package.mjs` (the bill of materials in `hardware/README.md` uses the same). Install is offered
   only where it works: ESP Web Tools checks for Web Serial on a secure page, and otherwise the page
   says once which browser to use.
 - `scripts/package.mjs`: takes a firmware build folder for each board, checks them and writes the

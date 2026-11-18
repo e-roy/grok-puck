@@ -9,10 +9,15 @@ import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { FLASH_ARGS, PARTITIONS, app, image, makeBuild, partitionTable, tempDir } from './fixture.mjs';
 import { createHash } from 'node:crypto';
-import { BOARDS, PackageError, inlineStyleHashes, parseBuild, readFirmware, readFirmwares, writePackage } from '../scripts/package.mjs';
+import { AMAZON_TAG, BOARDS, PackageError, amazonLink, inlineStyleHashes, parseBuild, readFirmware, readFirmwares, writePackage } from '../scripts/package.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../scripts/package.mjs', import.meta.url));
 const FIRMWARE = fileURLToPath(new URL('../../firmware/', import.meta.url));
+const HARDWARE_README = fileURLToPath(new URL('../../hardware/README.md', import.meta.url));
+const DISCLOSURE = 'As an Amazon Associate I earn from qualifying purchases.';
+/** The Amazon links in some HTML: [{ tag, url }]. */
+const amazonAnchors = (html) =>
+  [...html.matchAll(/<a\b[^>]*\bhref="([^"]*)"[^>]*>/g)].filter((m) => /\b(?:amazon|amzn)\./i.test(m[1])).map((m) => ({ tag: m[0], url: m[1] }));
 const LCD = 'waveshare-lcd-1.46';
 const AMOLED = 'waveshare-amoled-1.8';
 const made = [];
@@ -44,6 +49,23 @@ test('the boards are the folders in firmware/boards/, each naming itself in its 
     const config = fs.readFileSync(path.join(FIRMWARE, 'boards', id, 'board_config.h'), 'utf8');
     assert.match(config, new RegExp(`#define BOARD_NAME "${id.replaceAll('.', '\\.')}"`), `${id}'s board_config.h names it`);
   }
+});
+
+test("the bill of materials' Amazon links carry the page's tracking ID, nothing after the ASIN, and the disclosure right below the table", () => {
+  const readme = fs.readFileSync(HARDWARE_README, 'utf8').replace(/\r\n/g, '\n');
+  const links = [...readme.matchAll(/\]\(([^)\s]*\b(?:amazon|amzn)\.[^)\s]*)\)/gi)].map((m) => m[1]);
+  assert.ok(links.length > 0, 'the bill of materials has Amazon links');
+  for (const url of links) assert.match(url, new RegExp(`^https://www\\.amazon\\.com/dp/[A-Z0-9]{10}\\?tag=${AMAZON_TAG}$`), url);
+  const bom = /^## Bill of materials\n\n((?:\|.*\n)+)\n(.*)\n/m.exec(readme);
+  assert.ok(bom, 'the bill of materials is a table');
+  assert.ok(bom[1].includes(`(${amazonLink('B0DS83H2V6')})`), "the table's LCD-1.46 link is the page's");
+  assert.equal(bom[2], DISCLOSURE);
+  assert.doesNotMatch(readme, /\$\s?\d/, "no prices (Amazon's rules)");
+});
+
+test('an Amazon link is the product page and the tracking ID, for an ASIN only', () => {
+  assert.equal(amazonLink('B0DS83H2V6'), `https://www.amazon.com/dp/B0DS83H2V6?tag=${AMAZON_TAG}`);
+  for (const bad of ['b0ds83h2v6', 'B0DS83H2V', 'B0DS83H2V6?x=1', '']) assert.throws(() => amazonLink(bad), /is not an Amazon ASIN/);
 });
 
 describe('good builds, one per board', () => {
@@ -157,6 +179,28 @@ describe('good builds, one per board', () => {
       assert.ok(fs.existsSync(path.join(site, url)), `link ${url} is missing`);
     }
     assert.ok(fs.existsSync(path.join(site, 'esp-web-tools', 'install-button.js')));
+  });
+
+  test("the LCD-1.46's card links to it on Amazon once, with the disclosure; the AMOLED-1.8's card, and the rest of the page, don't", () => {
+    const html = fs.readFileSync(path.join(site, 'index.html'), 'utf8');
+    const card = (id) => {
+      const m = new RegExp(`<article class="board" aria-labelledby="${id}">([\\s\\S]*?)</article>`).exec(html);
+      assert.ok(m, `the page has the card ${id}`);
+      return m[1];
+    };
+    const lcd = card('board-lcd-146');
+    const links = amazonAnchors(lcd);
+    assert.equal(links.length, 1);
+    assert.equal(links[0].url, 'https://www.amazon.com/dp/B0DS83H2V6?tag=grok-puck-20');
+    assert.match(links[0].tag, /\brel="sponsored"/);
+    assert.match(lcd, /Don't have one\? <a [^>]+>Buy it on Amazon<\/a>/);
+    assert.equal(lcd.split(DISCLOSURE).length - 1, 1, 'the disclosure, once, next to the link');
+    const amoled = card('board-amoled-18');
+    assert.equal(amazonAnchors(amoled).length, 0);
+    assert.doesNotMatch(amoled, /Amazon/);
+    assert.equal(amazonAnchors(html).length, 1, 'no other Amazon link on the page');
+    assert.equal(html.split(DISCLOSURE).length - 1, 1);
+    assert.doesNotMatch(html, /\$\s?\d/, "no prices (Amazon's rules)");
   });
 
   test('the notices: this project, the firmware, the page and the long licence texts', () => {

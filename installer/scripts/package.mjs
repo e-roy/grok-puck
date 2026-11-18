@@ -43,6 +43,15 @@ const FILE_PREFIX = 'grok-puck';
 const SECTOR = 0x1000;
 // The marker that lets the script empty an output folder it made itself, and no other.
 const MARKER = '.grok-puck-package';
+// The Amazon Associates tracking ID in the page's "buy it" links, kept here only for the page.
+// hardware/README.md's bill of materials writes the same links out; a test checks they carry this ID.
+export const AMAZON_TAG = 'grok-puck-20';
+
+/** An Amazon product page with the tracking ID, and nothing else after the ASIN. */
+export const amazonLink = (asin) => {
+  if (!/^[A-Z0-9]{10}$/.test(asin)) fail(`"${asin}" is not an Amazon ASIN (10 capital letters and digits)`);
+  return `https://www.amazon.com/dp/${asin}?tag=${AMAZON_TAG}`;
+};
 
 /** The boards, as in firmware/boards/ (a test checks that the two agree), in the page's order. */
 export const BOARDS = [
@@ -373,6 +382,8 @@ function writePage({ site, version, repo, ewt }) {
     RELEASE_URL: `${repo}/releases/tag/v${version}`,
     SOURCE_URL: `${repo}/tree/v${version}`,
     SETUP_URL: `${repo}/blob/v${version}/docs/setup.md#4-install-and-connect-the-device`,
+    // Only boards tested with the project get a "buy it" link on their card (not the AMOLED-1.8 yet).
+    LCD_146_AMAZON_URL: amazonLink('B0DS83H2V6'),
     ESP_WEB_TOOLS_VERSION: ewt.version,
   };
   // The Content-Security-Policy's style sources: this site, and ESP Web Tools' inline styles by their
@@ -380,7 +391,7 @@ function writePage({ site, version, repo, ewt }) {
   // the policy would turn into character references.
   const styleSrc = ["'self'", ...ewt.styleHashes].join(' ');
   if (!/^'self'( 'sha256-[A-Za-z0-9+/]+={0,2}')*$/.test(styleSrc)) fail(`unexpected style sources for the page: ${styleSrc}`);
-  const html = template.replace(/\{\{([A-Z_]+)\}\}/g, (all, key) => {
+  const html = template.replace(/\{\{([A-Z][A-Z0-9_]*)\}\}/g, (all, key) => {
     if (key === 'STYLE_SRC') return styleSrc;
     if (!(key in values)) fail(`page/index.html has an unknown placeholder ${all}`);
     return escapeHtml(values[key]);

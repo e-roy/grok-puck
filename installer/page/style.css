@@ -263,7 +263,23 @@ esp-web-install-button:not(:defined) > [slot] {
 .board p {
   color: var(--muted);
   margin: 0 0 1rem;
-  flex: 1;
+}
+
+/* The Install buttons sit at the bottom of their cards, level with each other. */
+.board esp-web-install-button {
+  margin-top: auto;
+}
+
+/* A tested board's "buy it" link, with the affiliate disclosure: small, under the description. */
+.board .buy {
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.buy small {
+  display: block;
+  font-size: 0.8125rem;
+  margin-top: 0.15rem;
 }
 
 .board-picture {
