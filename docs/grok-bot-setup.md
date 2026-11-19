@@ -4,8 +4,8 @@ Step 5 of the [setup guide](setup.md): by now the bridge runs behind its public 
 admin page has your bot and an approved device.
 
 **Status: all three steps work with Grok Bot.** Typed chat, the test message and hold-to-talk all
-reach the desk. The checks at the end ([What the first connection should tell us](#what-the-first-connection-should-tell-us))
-have not been run yet.
+reach the desk. The checks at the end ([Checking what the bot does](#checking-what-the-bot-does)) have
+not been run yet.
 
 Three things connect a bot to the desk. Each one changes your Grok Bot account, so do them one at a
 time and check each before the next:
@@ -51,9 +51,10 @@ can't be shown again: **Replace the key** and paste the new header value.
 
 ## 2. The standing instructions
 
-Send the message below to the bot. If several bots share the bridge, add the line
-`In every desk tool call, pass bot: "<your bot name>".` with the bot's name as set up in the admin
-page; with one bot, leave it out.
+Send the message below to the bot. The first bot on the bridge needs nothing more: calls that don't
+name a bot go to it (admin page → **Bots**, "Calls that don't name a bot"). For every bot added after
+it, add the line `In every desk tool call, pass bot: "<the bot's name>".`, with its name exactly as
+set up in the admin page, so its calls reach its own devices.
 
 ```text
 Please save the text below as a private skill called "Desk display", just for yourself, and turn it on.
@@ -64,8 +65,9 @@ I have a small display on my desk that shows you and speaks for you. Its tools c
 Every time you work on a message from me:
 1. When you start, call desk_status with state "thinking".
 2. When you start using tools, the browser or the computer, call desk_status with state "working".
-3. If you need my approval or an answer before you can go on, call desk_status with state "waiting",
-   then ask me.
+3. If you need my answer, my approval, or me to do something in the app before you can go on, call
+   desk_status with state "waiting", then ask me. Leave it at "waiting" until I answer: the desk
+   shows that you are waiting for me.
 4. When you have written your reply to me, call desk_say with exactly the same text. If my message came
    from the desk (it has a request_id), pass that request_id as well.
 5. If you finish without writing anything to me, call desk_status with state "idle".
@@ -124,19 +126,45 @@ hold the device, ask something, and let go.
 
 ---
 
-## What the first connection should tell us
+## Checking what the bot does
 
-Not run yet. Record the answers in `docs/spec.md` (section 9, Risks) and fix this guide.
+Not run yet. Record the results (counts and timings only, never reply text) here and in
+`docs/spec.md` (section 9, Risks).
 
-1. **Context:** type something in the chat, then send a follow-up through the routine that refers
-   to it ("what did I just ask you?"). Does the routine run know? If not, turn on **Send the last few
-   spoken exchanges** for the bot in the admin page, and check where the run's reply appears in the app.
-2. **Reliability:** over ten typed messages, how often did the desk show "thinking" and speak
-   the reply?
-3. **Which bot is calling:** in **Recent calls**, does anything (headers, client name) identify the
-   bot? If nothing does, keep the `bot:` line in the instructions.
-4. **Timing:** the History's "bot reply" times for short questions.
-5. **The app's own voice:** in a voice chat with the bot in the Grok Bot app, does it still call the
-   desk tools? If it does, the desk speaks over the call: mute the device in the admin page first.
+Every turn the bot takes shows under **History** → **Turns** in the admin page: its desk calls in
+order, with their times, checked against the instructions above (spec §5.11). **Export** saves them
+with a summary.
+
+Run the checks on a **test bot**, not on a bot you rely on: each message lands in its chat and uses
+your plan's usage. Give it a device of its own on the bridge, the standing instructions with its
+`bot:` line (step 2), and its own "Desk voice" routine (step 3) for the spoken messages.
+
+| # | Send to the test bot | Its turn should show | The device should |
+|---|---|---|---|
+| 1 | "What is the capital of Australia? One sentence." | thinking, then `desk_say`; every check passes | think, then speak |
+| 2 | "Look up the latest ESP-IDF release on the web and tell me its version." | thinking, working, `desk_say` | think, work (the faster orbit), speak |
+| 3 | "Help me choose a name for a houseplant. Ask me one question first, then wait for my answer." | thinking, waiting, `desk_say` with the question ("question spoken" passes) | show attention (the "!" and the hop) with one chirp, and keep it while you're away: leave it for 11 minutes or more, past the old expiry |
+| 4 | Answer its question, typed | a new turn, thinking first; attention ends at its first call | drop the "!", think, speak |
+| 5 | "Save a note in your memory that the test phrase is blue kettle. Don't write me a reply." | thinking, working, idle, and no `desk_say` | think, work, then rest |
+| 6 | "Show me a three-line Python hello world and a link to python.org." | a `desk_say` with fewer characters spoken than written | speak, skipping the code and the link |
+| 7 | Hold the device and ask "What time zone is Tokyo in?" | a voice turn: the webhook, then thinking and `desk_say`, all with the `request_id` | think at once, then speak |
+| 8 | Type "What is 17 times 23?", then hold the device and ask "What did I just ask you, and what was the answer?" | a typed turn, then a voice turn | speak whether the routine run knew the typed question (context, below) |
+| 9 | "Explain in about 300 words how a heat pump works." | one long `desk_say` | speak it to the end, about two minutes |
+| 10 | Ten short questions, typed one after another, each after the last reply | ten turns | think and speak ten times |
+| 11 | Mute the device in the admin page, then talk with the bot in the app's voice chat for a minute | whatever turns appear | stay silent |
+
+What the results tell:
+
+1. **Context** (message 8): does the routine run know what was typed in the chat? If not, **Send the
+   last few spoken exchanges** (admin page → **Bots**) carries only what was said at the desk, so
+   say in the routine's message what it needs; check where the run's reply appears in the app.
+2. **Reliability** (messages 1 to 10): how many turns passed every check, and which checks failed
+   how often. A check that keeps failing calls for a change to the standing instructions.
+3. **Which bot is calling:** answered: nothing in the call says so (spec §5.5), so every bot after
+   the first keeps its `bot:` line.
+4. **Timing:** the export's summary: the reply time of typed and of voice turns (median and range),
+   and how long speech takes to start.
+5. **The app's own voice** (message 11): if the bot calls the desk tools during a voice chat, the
+   desk would speak over the call: keep the device muted during voice chats.
 6. **Limits:** the bridge allows 60 voice messages, 120 `desk_say` and 600 `desk_status` calls an
    hour; Grok Bot allows 200 webhook runs an hour per routine.
