@@ -14,8 +14,6 @@
   --code-bg: #eef0f3;
   --logo: #1d4ed8;
   --logo-eye: #ffffff;
-  --board-body: #3a4049;
-  --board-screen: #000000;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -33,8 +31,6 @@
     --code-bg: #262a31;
     --logo: #8ab4ff;
     --logo-eye: #111317;
-    --board-body: #4a515c;
-    --board-screen: #000000;
   }
 
   /* ESP Web Tools' dialogs set their colours on their own element: follow the dark theme there too. */
@@ -270,7 +266,7 @@ esp-web-install-button:not(:defined) > [slot] {
   margin-top: auto;
 }
 
-/* A tested board's "buy it" link, with the affiliate disclosure: small, under the description. */
+/* Each board's "buy it" link, with the affiliate disclosure: small, under the description. */
 .board .buy {
   font-size: 0.875rem;
   line-height: 1.45;
@@ -282,21 +278,15 @@ esp-web-install-button:not(:defined) > [slot] {
   margin-top: 0.15rem;
 }
 
-.board-picture {
-  width: 7rem;
-  height: 7rem;
-}
-
-.board-body {
-  fill: var(--board-body);
-}
-
-.board-screen {
-  fill: var(--board-screen);
-}
-
-.board-eye {
-  fill: var(--logo);
+/* Each board's photo: the same height on both cards (the width follows from its own proportions), so
+   the names, descriptions and buttons below line up. */
+.board-photo {
+  display: block;
+  height: 11rem;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 0.6rem;
 }
 
 .trouble dt {

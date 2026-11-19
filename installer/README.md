@@ -8,11 +8,14 @@ ESP-IDF. Design: [docs/spec.md](../docs/spec.md) §4.7, and §4.8 for the boards
 - `page/`: the page (plain HTML and CSS, light and dark). It uses
   [ESP Web Tools](https://github.com/esphome/esp-web-tools), installed with pnpm and served from the page's
   own site, so the page loads nothing from another server (its Content-Security-Policy says so too).
-  It has a card for each board, with a drawing, how to tell it apart and its own **Install** button
-  (its own manifest): USB can't tell the boards apart, so the person picks theirs. A board tested with
-  the project also gets a small "buy it" link on its card, an Amazon affiliate link with the
-  disclosure beside it; the packaging script fills it in, and its tracking ID is `AMAZON_TAG` in
-  `scripts/package.mjs` (the bill of materials in `hardware/README.md` uses the same). Install is offered
+  It has a card for each board, with its photo, how to tell it apart and its own **Install** button
+  (its own manifest): USB can't tell the boards apart, so the person picks theirs. Each card's photo is
+  its board's `hardware/<board>/images/photo-small.jpg`: the packaging script copies it into the site
+  as `img/<board>.jpg`, and refuses a board without one; a test checks that the photos carry no
+  metadata. Each board, tested with the project, also gets a small "buy it" link on its card, an Amazon
+  affiliate link with the disclosure beside it; the packaging script fills it in, and its tracking ID
+  is `AMAZON_TAG` in `scripts/package.mjs` (each device's bill of materials, in
+  `hardware/<board>/README.md`, uses the same). Install is offered
   only where it works: ESP Web Tools checks for Web Serial on a secure page, and otherwise the page
   says once which browser to use.
 - `scripts/package.mjs`: takes a firmware build folder for each board, checks them and writes the
@@ -38,7 +41,7 @@ the device's Wi-Fi networks, bridge address and key). It refuses:
   reports another version;
 - a build packaged as another board than the one its app names (the firmware puts its board's id in
   its hello), a board given twice or left out, and builds of different versions;
-- a page without an Install button for every board.
+- a page without an Install button for every board, and a board without its photo.
 
 Each manifest offers ESP Web Tools' **Erase device** choice (`new_install_prompt_erase`), for a clean
 start, and doesn't wait for Improv Wi-Fi after an install (`new_install_improv_wait_time: 0`): the

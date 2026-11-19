@@ -141,12 +141,26 @@ comes only after plenty of testing by people using it, since new needs keep turn
 added. What a device can do is told by `features` in its hello (and its board by `board`), never by
 comparing versions.
 
-## The case and stand (OpenSCAD)
+## The devices' hardware
 
-[hardware/](hardware/) has the parametric OpenSCAD sources and the exported STL files. Change the
-parameters in the `.scad` file, export the parts again as in
-[hardware/README.md](hardware/README.md#editing-the-models), and commit the `.scad` and the `.stl`
-files together. Say what you printed and how it fit.
+[hardware/](hardware/) has one folder per device, named exactly like its firmware board
+(`firmware/boards/<id>`, which a test checks):
+
+- `README.md`: its bill of materials (Amazon links with the tracking ID and the disclosure right below
+  the table, no prices), what to print and how, assembly, editing the models, known issues;
+- `print/`: the STL files, ready to print, named with the device's prefix (`lcd146_case.stl`), so a
+  downloaded file still says what it is for;
+- `source/`: the parametric OpenSCAD sources;
+- `images/`: `photo.jpg` (about 1200 px on the long side) for the READMEs, and `photo-small.jpg` (about
+  520 px) for the device's card on the installer page. Re-encode both from the original so they carry
+  no metadata (no Exif, GPS or XMP): a test refuses anything else.
+
+**A new device** gets its own folder like that, a line in [hardware/README.md](hardware/README.md),
+and its board in `firmware/boards/`. **A changed build**: change the parameters in its `.scad`
+source, export the parts again over their files in `print/` as in its README's "Editing the models"
+(for the LCD-1.46: [Editing the models](hardware/waveshare-lcd-1.46/README.md#editing-the-models)),
+note the new version in its README, and commit the `.scad` and the `.stl` files together. Say what you
+printed and how it fit.
 
 ## Pull requests
 

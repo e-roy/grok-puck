@@ -18,7 +18,9 @@
 // It writes:
 //   <out>/site/              the installer page, for GitHub Pages: the page, ESP Web Tools (copied from
 //                            node_modules, so the page loads nothing from another server), each board's
-//                            manifest and four parts under firmware/<board>/, and the licence notices;
+//                            photo (from hardware/<board>/images/photo-small.jpg) under img/, each
+//                            board's manifest and four parts under firmware/<board>/, and the licence
+//                            notices;
 //   <out>/release/           the files attached to the GitHub Release: each board's four parts and
 //                            manifest, and the licence notices (one file for every board);
 //   <out>/release-notes.md   the release's description.
@@ -46,6 +48,13 @@ const MARKER = '.grok-puck-package';
 // The Amazon Associates tracking ID in the page's "buy it" links, kept here only for the page.
 // hardware/README.md's bill of materials writes the same links out; a test checks they carry this ID.
 export const AMAZON_TAG = 'grok-puck-20';
+// hardware/ has a folder per board, named like it: each board's card on the page shows its
+// images/photo-small.jpg, which the packaging script copies to the page's own site as img/<board>.jpg.
+export const HARDWARE = path.join(REPO_ROOT, 'hardware');
+/** Where a board's photo for its card is kept. */
+export const boardPhoto = (board, hardware = HARDWARE) => path.join(hardware, board, 'images', 'photo-small.jpg');
+/** Where the page shows a board's photo (index.html's cards point at it). */
+export const pagePhoto = (board) => `img/${board}.jpg`;
 
 /** An Amazon product page with the tracking ID, and nothing else after the ASIN. */
 export const amazonLink = (asin) => {
@@ -364,7 +373,18 @@ function notices({ version, withPage, ewt, picolibc }) {
 
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-function writePage({ site, version, repo, ewt }) {
+/** Each board's photo for its card ({ board: file }): refuses a board without one. */
+function boardPhotos(hardware) {
+  const photos = {};
+  for (const b of BOARDS) {
+    const file = boardPhoto(b.id, hardware);
+    if (!fs.existsSync(file)) fail(`no photo for ${b.id}: its card on the page shows ${path.relative(REPO_ROOT, file).replaceAll('\\', '/')}, which is missing`);
+    photos[b.id] = file;
+  }
+  return photos;
+}
+
+function writePage({ site, version, repo, ewt, photos }) {
   const page = path.join(INSTALLER, 'page');
   const template = fs.readFileSync(path.join(page, 'index.html'), 'utf8');
   // The page has a button for each board, at that board's manifest, and none for another.
@@ -375,15 +395,27 @@ function writePage({ site, version, repo, ewt }) {
   for (const url of buttons) {
     if (!BOARDS.some((b) => pageManifest(b.id) === url)) fail(`page/index.html has an Install button for a board that isn't packaged (manifest="${url}")`);
   }
+  // Its images: each board's photo, once, and nothing else (the page's CSP allows only img-src 'self').
+  const images = [...template.matchAll(/<img\b[^>]*\bsrc="([^"]*)"/g)].map((m) => m[1]);
+  for (const b of BOARDS) {
+    if (images.filter((src) => src === pagePhoto(b.id)).length !== 1) fail(`page/index.html must show ${b.id}'s photo once (src="${pagePhoto(b.id)}")`);
+  }
+  for (const src of images) {
+    if (!BOARDS.some((b) => pagePhoto(b.id) === src)) fail(`page/index.html shows an image that isn't a board's photo (src="${src}")`);
+  }
   fs.cpSync(page, site, { recursive: true });
+  fs.mkdirSync(path.join(site, 'img'), { recursive: true });
+  for (const b of BOARDS) fs.copyFileSync(photos[b.id], path.join(site, pagePhoto(b.id)));
   const values = {
     VERSION: version,
     REPO: repo,
     RELEASE_URL: `${repo}/releases/tag/v${version}`,
     SOURCE_URL: `${repo}/tree/v${version}`,
     SETUP_URL: `${repo}/blob/v${version}/docs/setup.md#4-install-and-connect-the-device`,
-    // Only boards tested with the project get a "buy it" link on their card (not the AMOLED-1.8 yet).
+    // Each board's "buy it" link on its card: the one tested with the project (for the AMOLED-1.8,
+    // the version without a battery).
     LCD_146_AMAZON_URL: amazonLink('B0DS83H2V6'),
+    AMOLED_18_AMAZON_URL: amazonLink('B0DSVK5576'),
     ESP_WEB_TOOLS_VERSION: ewt.version,
   };
   // The Content-Security-Policy's style sources: this site, and ESP Web Tools' inline styles by their
@@ -429,11 +461,15 @@ function releaseNotes({ pack, repo, commit, pageUrl }) {
   return lines.join('\n');
 }
 
-/** Writes the page, the release files and the release notes for every board's checked build. */
-export function writePackage({ pack, out, repo = DEFAULT_REPO, commit, pageUrl }) {
+/**
+ * Writes the page, the release files and the release notes for every board's checked build.
+ * `hardware` is where the boards' folders are (their photos), hardware/ unless a test says otherwise.
+ */
+export function writePackage({ pack, out, repo = DEFAULT_REPO, commit, pageUrl, hardware = HARDWARE }) {
   if (!/^https:\/\/[A-Za-z0-9.-]+(\/[A-Za-z0-9._-]+)+$/.test(repo)) fail(`--repo must be an https address such as ${DEFAULT_REPO}`);
   if (commit !== undefined && !/^[0-9a-f]{7,40}$/.test(commit)) fail('--commit must be a commit SHA');
   if (pageUrl !== undefined && !/^https?:\/\/\S+$/.test(pageUrl)) fail('--page-url must be an http(s) address');
+  const photos = boardPhotos(hardware);
   const ewt = espWebTools();
   prepareOut(out);
   const site = path.join(out, 'site');
@@ -450,7 +486,7 @@ export function writePackage({ pack, out, repo = DEFAULT_REPO, commit, pageUrl }
     fs.writeFileSync(path.join(site, pageManifest(f.board)), json);
     fs.writeFileSync(path.join(release, releaseManifestName(pack.version, f.board)), json);
   }
-  writePage({ site, version: pack.version, repo, ewt });
+  writePage({ site, version: pack.version, repo, ewt, photos });
   fs.writeFileSync(path.join(site, 'notices.txt'), notices({ version: pack.version, withPage: true, ewt: ewt.version, picolibc: pack.picolibc }));
   fs.writeFileSync(path.join(release, `${FILE_PREFIX}-${pack.version}-notices.txt`), notices({ version: pack.version, withPage: false, picolibc: pack.picolibc }));
   fs.writeFileSync(path.join(out, 'release-notes.md'), releaseNotes({ pack, repo, commit, pageUrl }));

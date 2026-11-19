@@ -43,14 +43,17 @@ that run the whole loop on one computer: see
 
 ## 1. Get the parts and print the case
 
-The parts list, with where to buy them, is in [hardware/README.md](../hardware/README.md#bill-of-materials):
-the **Waveshare ESP32-S3-Touch-LCD-1.46** (the cover-glass version), a right-angle USB-C cable, a 5 V
-USB power supply, three M2×6 screws and PLA. Or the **Waveshare ESP32-S3-Touch-AMOLED-1.8** *(being
-tested)*, which comes in its own case: then nothing needs printing.
+Pick a device: [hardware/](../hardware/README.md) lists them. Each one's own README has its parts
+list, with where to buy them, and what to print:
 
-The case and stand print without supports in PLA. Which files, the print settings and how to put it
-together: [hardware/README.md](../hardware/README.md#prints). Ready-to-print files will be in
-[hardware/print-files/](../hardware/print-files/).
+- the **Waveshare ESP32-S3-Touch-LCD-1.46** (the cover-glass version), with a right-angle USB-C cable,
+  a 5 V USB power supply, three M2×4 screws (nothing longer) and PLA:
+  [parts](../hardware/waveshare-lcd-1.46/README.md#bill-of-materials). Its case, button plungers and
+  stand print without supports in PLA: [what to print and how](../hardware/waveshare-lcd-1.46/README.md#prints),
+  and [how to put it together](../hardware/waveshare-lcd-1.46/README.md#assembly);
+- or the **Waveshare ESP32-S3-Touch-AMOLED-1.8**, with any USB cable that carries data and a 5 V USB
+  charger: [parts](../hardware/waveshare-amoled-1.8/README.md#bill-of-materials). It comes in its own
+  case, so nothing needs printing.
 
 The case is optional for the next steps: the bare board works on the desk while you set it up.
 
@@ -148,8 +151,8 @@ has a voice".
 
 1. **Pick your board.** The firmware runs on two Waveshare boards, each with its own firmware:
    - the **ESP32-S3-Touch-LCD-1.46**: round, a bare board for the printed case
-     ([hardware/README.md](../hardware/README.md));
-   - the **ESP32-S3-Touch-AMOLED-1.8** *(being tested)*: rectangular, upright, in its own black case;
+     ([hardware/waveshare-lcd-1.46/](../hardware/waveshare-lcd-1.46/README.md));
+   - the **ESP32-S3-Touch-AMOLED-1.8**: rectangular, upright, in its own black case;
      its name is on the label on its back.
 2. **Install the firmware from the browser:** open the
    [Grok Puck installer](https://e-roy.github.io/grok-puck/) in Chrome, Edge or Firefox (151 or newer)
@@ -172,7 +175,7 @@ has a voice".
    `wss://desk.example.com/device`, and press **Save the address**.
 4. **Approve it:** in the admin page, **Devices** shows the new device. Choose its bot and press
    **Approve** while the device is online: it receives its own key and shows your bot's avatar.
-5. Put the LCD-1.46 in its case and stand, if you printed them ([assembly](../hardware/README.md#prints)).
+5. Put the LCD-1.46 in its case and stand, if you printed them ([assembly](../hardware/waveshare-lcd-1.46/README.md#assembly)).
    The AMOLED-1.8 is in its own case already.
 
 **Check:** on the device's card, **Try it** speaks a sentence on the device, and the **Setup** list
@@ -281,5 +284,5 @@ username (work Wi-Fi) can't be joined: use your phone's hotspot there.
   (Grok Bot allows 200 runs an hour per routine). Typed chat costs what it always does.
 - **Cloudflare:** the Tunnel and Access are free on the Free plan; you pay your registrar for the domain.
 - **Speech:** free when self-hosted; hosted services charge per use.
-- **Hardware:** the board, a cable, a power supply, three screws and some PLA
-  ([parts list](../hardware/README.md#bill-of-materials)).
+- **Hardware:** the board, a cable and a power supply; for the LCD-1.46 also three screws and some PLA
+  (each device's parts list: [hardware/](../hardware/README.md)).

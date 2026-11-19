@@ -6,7 +6,7 @@ what works.** Agreed on 12 Nov 2026 and not built yet: **xAI as a speech service
 0.6.1), with "listening" and **Stop listening** added on 14 Nov 2026. **Firmware releases and the web
 installer** (§4.7, milestone M9) are built, and v0.6.0 was released on 13 Nov 2026. Agreed and built
 on 15 Nov 2026: **boards and what they can do** (§4.8, milestone M10), with a second board, the
-Waveshare ESP32-S3-Touch-AMOLED-1.8 (firmware 0.6.2, being tested). Items marked
+Waveshare ESP32-S3-Touch-AMOLED-1.8 (firmware 0.6.2), now supported. Items marked
 *(proposal)* are suggestions you can change; items marked *(to test)* depend on how Grok Bot actually
 behaves, and get checked at milestone M2.
 
@@ -103,7 +103,7 @@ Two boards so far, each with its own firmware build (§4.8):
   I2C, I2S microphone, PCM5101 DAC + amplifier + onboard speaker, QMI8658 motion sensor, TCA9554 I/O
   expander. USB-C power only. Slim printed case and a 15° desk stand; a right-angle USB-C cable runs
   out the back. Note: the SPD2010 needs every redraw area aligned to 4-pixel columns.
-- Waveshare **ESP32-S3-Touch-AMOLED-1.8** *(being tested)*: the same chip, a 1.8" 368x448 AMOLED (not
+- Waveshare **ESP32-S3-Touch-AMOLED-1.8**: the same chip, a 1.8" 368x448 AMOLED (not
   round), an ES8311 codec with a speaker and microphone, in its own case (§4.8). Its display needs
   redraw areas on even rows and columns.
 - Pins are in Waveshare's documentation; board bring-up follows Waveshare's examples.
@@ -289,7 +289,7 @@ described below but not built yet.
 | Board | Its id | Screen | Touch | Audio | Status |
 |---|---|---|---|---|---|
 | Waveshare ESP32-S3-Touch-LCD-1.46 | `waveshare-lcd-1.46` | round LCD, 412×412 (SPD2010) | SPD2010 | PCM5101 DAC with amplifier and speaker; I2S microphone | the first board |
-| Waveshare ESP32-S3-Touch-AMOLED-1.8 | `waveshare-amoled-1.8` | AMOLED, 368×448, upright, not round: SH8601 (V1) or CO5300 (V2) | FT3168 (V1) or CST820 (V2) | ES8311 codec: speaker (NS4150B amplifier) and an analogue microphone | being tested |
+| Waveshare ESP32-S3-Touch-AMOLED-1.8 | `waveshare-amoled-1.8` | AMOLED, 368×448, upright, not round: SH8601 (V1) or CO5300 (V2) | FT3168 (V1) or CST820 (V2) | ES8311 codec: speaker (NS4150B amplifier) and an analogue microphone | supported: works with real speech on an always-on bridge |
 
 Both have an ESP32-S3R8 (8 MB PSRAM), 16 MB flash, USB-C (the chip's own USB Serial/JTAG) and BOOT on
 GPIO0. The AMOLED-1.8 comes in its own case, with an AXP2101 power manager (battery connector, PWR
@@ -377,8 +377,9 @@ alone. Its PWR button turns the board off and on by itself; the firmware doesn't
 a battery is not part of this step.
 
 **Installing (§4.7).** USB can't tell ESP32-S3 boards apart, so the installer page has one Install
-button per board, each with its own manifest, the board's name and a drawing of it (a round puck; a
-rectangle in its case). The page says how to tell them apart: the LCD-1.46 is round; the AMOLED-1.8 is
+button per board, each with its own manifest, the board's name and a photo of it (the round puck in
+its printed case; the rectangle in its own case), from `hardware/<board>/images/`. The page says how
+to tell them apart: the LCD-1.46 is round; the AMOLED-1.8 is
 rectangular, and its name is on the label on its back. A wrong choice doesn't start: the screen stays
 dark, and installing the right one fixes it.
 - Each manifest's name says its board ("Grok Puck for ESP32-S3-Touch-AMOLED-1.8").
@@ -781,7 +782,8 @@ measurements (context, reliability, timing) are still to be taken.
   days old, from GitHub, pnpm and Espressif only.
 - Layout: `firmware/`, `bridge/` (server, admin page, a fake device and a fake Grok Bot for tests),
   `installer/` (the web installer page and the script that packages a firmware build),
-  `hardware/` (BOM, STL, OpenSCAD `.scad` sources), `docs/`, `scripts/` (the privacy check).
+  `hardware/` (one folder per device, named like its board: BOM, STL, OpenSCAD `.scad` sources,
+  photos), `docs/`, `scripts/` (the privacy check).
 - Placeholders only (`desk.example.com`).
 
 ---
@@ -800,7 +802,7 @@ measurements (context, reliability, timing) are still to be taken.
 | M7 | Listen page (§5.10) | with Speak on set to the Listen page, a typed chat reply plays in the browser tab while the device shows "speaking"; a tap on the device stops it; with no page ready, the device speaks | built (bridge, Listen page, firmware 0.6.1): tested with the fake device and the fake Grok Bot, in Chrome (a background tab too), and on the board with a local bridge (the steady pulse while the page plays, a tap or a hold stops the page, both places together). v0.6.1 is to be released, and a typed reply through the real Grok Bot to be checked with it |
 | M8 | xAI as a speech service (§5.6.1) | the device speaks with an xAI voice, a voice message is transcribed by xAI, and the tests pass against a fake xAI server | planned, not built |
 | M9 | Firmware releases and the web installer (§4.7) | "Release firmware" publishes `v<version>` with the four parts, the manifest and the notices; the installer page on GitHub Pages installs it from the browser and the device keeps its settings; **Erase device** gives a clean start | released: v0.6.0 on 13 Nov 2026 |
-| M10 | Boards and what they can do (§4.8): a board layer, and the AMOLED-1.8 as a second board | the AMOLED-1.8 shows the face, speaks and listens through a bridge, and is set up from a phone; the LCD-1.46 works as before; CI and a release build both boards; the installer page installs either from its own button | built (firmware 0.6.2): tested on an AMOLED-1.8 V2 with a local bridge; the LCD-1.46 is to be checked on its board before v0.6.2 is released. Boards without a speaker or a microphone are described, not built |
+| M10 | Boards and what they can do (§4.8): a board layer, and the AMOLED-1.8 as a second board | the AMOLED-1.8 shows the face, speaks and listens through a bridge, and is set up from a phone; the LCD-1.46 works as before; CI and a release build both boards; the installer page installs either from its own button | built (firmware 0.6.2): the AMOLED-1.8 (V2) works with real speech on the always-on bridge; the LCD-1.46's hardware check is still to come before the v0.6.2 release. Boards without a speaker or a microphone are described, not built |
 
 M1 and M2 came first so that any surprise on the Grok Bot side showed up before the firmware was far
 along. M7, M8, M9 and M10 don't depend on each other, so any can come first.
@@ -824,6 +826,6 @@ along. M7, M8, M9 and M10 don't depend on each other, so any can come first.
 | An install could wipe the device's settings | the installer writes the four parts separately and never NVS; the packaging script refuses any build that would reach into another partition, in every pull request and every release |
 | Not every browser can install (Web Serial) | the installer offers Install only where it works and says which browser to use otherwise; tested in Chrome (Edge shares its engine); Firefox 151+ is not tested yet |
 | A published release built from the wrong files | releases are built only by the release workflow, from `main`, in the pinned ESP-IDF container; a version is never released twice |
-| Someone installs the other board's firmware | one button per board, with its name and a drawing; the packaging script refuses a build packaged as the wrong board; a wrong install leaves the screen dark, and installing the right one fixes it |
+| Someone installs the other board's firmware | one button per board, with its name and a photo; the packaging script refuses a build packaged as the wrong board; a wrong install leaves the screen dark, and installing the right one fixes it |
 | An AMOLED wears where pixels stay lit (burn-in) | on OLED boards the face drifts slowly (§4.8); dimming when idle comes in M6 |
 | A board revision that can't be tested here (the AMOLED-1.8's V1) | it is told apart by its touch chip, as in Waveshare's examples, and uses Waveshare's display commands; it is marked untested until someone tries one |

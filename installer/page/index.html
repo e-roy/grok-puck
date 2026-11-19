@@ -76,12 +76,8 @@
 
       <div class="boards">
         <article class="board" aria-labelledby="board-lcd-146">
-          <svg class="board-picture" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
-            <circle cx="60" cy="60" r="54" class="board-body"/>
-            <circle cx="60" cy="60" r="46" class="board-screen"/>
-            <ellipse cx="50" cy="58" rx="5" ry="10" class="board-eye"/>
-            <ellipse cx="70" cy="58" rx="5" ry="10" class="board-eye"/>
-          </svg>
+          <img class="board-photo" src="img/waveshare-lcd-1.46.jpg" width="455" height="520" decoding="async"
+            alt="The round LCD-1.46 in its black printed case and desk stand, showing a bot's avatar">
           <h3 id="board-lcd-146">ESP32-S3-Touch-LCD-1.46</h3>
           <p>Round, 1.46" across the screen. It comes as a bare board, for the printed case.</p>
           <p class="buy">Don't have one? <a href="{{LCD_146_AMAZON_URL}}" rel="sponsored">Buy it on Amazon</a>
@@ -93,14 +89,12 @@
           </esp-web-install-button>
         </article>
         <article class="board" aria-labelledby="board-amoled-18">
-          <svg class="board-picture" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
-            <rect x="27" y="6" width="66" height="108" rx="12" class="board-body"/>
-            <rect x="33" y="14" width="54" height="80" rx="5" class="board-screen"/>
-            <ellipse cx="52" cy="52" rx="4" ry="9" class="board-eye"/>
-            <ellipse cx="68" cy="52" rx="4" ry="9" class="board-eye"/>
-          </svg>
+          <img class="board-photo" src="img/waveshare-amoled-1.8.jpg" width="520" height="509" decoding="async"
+            alt="The rectangular AMOLED-1.8 in its own black case, showing a bot's avatar">
           <h3 id="board-amoled-18">ESP32-S3-Touch-AMOLED-1.8</h3>
           <p>Rectangular, upright, in its own black case. Its name is on the label on its back.</p>
+          <p class="buy">Don't have one? <a href="{{AMOLED_18_AMAZON_URL}}" rel="sponsored">Buy it on Amazon</a>
+            <small>As an Amazon Associate I earn from qualifying purchases.</small></p>
           <esp-web-install-button manifest="firmware/waveshare-amoled-1.8/manifest.json">
             <button slot="activate" type="button" class="button">Install for the AMOLED-1.8</button>
             <span slot="unsupported"></span>
