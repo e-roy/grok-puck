@@ -9,11 +9,10 @@ import { after, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { FLASH_ARGS, PARTITIONS, app, image, makeBuild, partitionTable, tempDir } from './fixture.mjs';
 import { createHash } from 'node:crypto';
-import { AMAZON_TAG, BOARDS, PackageError, amazonLink, inlineStyleHashes, parseBuild, readFirmware, readFirmwares, writePackage } from '../scripts/package.mjs';
+import { AMAZON_TAG, BOARDS, HARDWARE, PackageError, amazonLink, boardPhoto, inlineStyleHashes, pagePhoto, parseBuild, readFirmware, readFirmwares, writePackage } from '../scripts/package.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../scripts/package.mjs', import.meta.url));
 const FIRMWARE = fileURLToPath(new URL('../../firmware/', import.meta.url));
-const HARDWARE = fileURLToPath(new URL('../../hardware/', import.meta.url));
 const DISCLOSURE = 'As an Amazon Associate I earn from qualifying purchases.';
 /** The Amazon links in some HTML: [{ tag, url }]. */
 const amazonAnchors = (html) =>
@@ -260,26 +259,43 @@ describe('good builds, one per board', () => {
     assert.ok(fs.existsSync(path.join(site, 'esp-web-tools', 'install-button.js')));
   });
 
-  test("the LCD-1.46's card links to it on Amazon once, with the disclosure; the AMOLED-1.8's card, and the rest of the page, don't", () => {
+  const card = (html, id) => {
+    const m = new RegExp(`<article class="board" aria-labelledby="${id}">([\\s\\S]*?)</article>`).exec(html);
+    assert.ok(m, `the page has the card ${id}`);
+    return m[1];
+  };
+
+  test("each board's card links to it on Amazon once, with its own ASIN and the tracking ID, and the disclosure once; the rest of the page doesn't", () => {
     const html = fs.readFileSync(path.join(site, 'index.html'), 'utf8');
-    const card = (id) => {
-      const m = new RegExp(`<article class="board" aria-labelledby="${id}">([\\s\\S]*?)</article>`).exec(html);
-      assert.ok(m, `the page has the card ${id}`);
-      return m[1];
-    };
-    const lcd = card('board-lcd-146');
-    const links = amazonAnchors(lcd);
-    assert.equal(links.length, 1);
-    assert.equal(links[0].url, 'https://www.amazon.com/dp/B0DS83H2V6?tag=grok-puck-20');
-    assert.match(links[0].tag, /\brel="sponsored"/);
-    assert.match(lcd, /Don't have one\? <a [^>]+>Buy it on Amazon<\/a>/);
-    assert.equal(lcd.split(DISCLOSURE).length - 1, 1, 'the disclosure, once, next to the link');
-    const amoled = card('board-amoled-18');
-    assert.equal(amazonAnchors(amoled).length, 0);
-    assert.doesNotMatch(amoled, /Amazon/);
-    assert.equal(amazonAnchors(html).length, 1, 'no other Amazon link on the page');
-    assert.equal(html.split(DISCLOSURE).length - 1, 1);
+    for (const { id, asin } of CARDS) {
+      const c = card(html, id);
+      const links = amazonAnchors(c);
+      assert.equal(links.length, 1, `${id}: one Amazon link`);
+      assert.equal(links[0].url, `https://www.amazon.com/dp/${asin}?tag=grok-puck-20`, id);
+      assert.match(links[0].tag, /\brel="sponsored"/);
+      assert.match(c, /Don't have one\? <a [^>]+>Buy it on Amazon<\/a>/);
+      assert.equal(c.split(DISCLOSURE).length - 1, 1, `${id}: the disclosure, once, next to the link`);
+    }
+    assert.equal(new Set(CARDS.map((c) => c.asin)).size, CARDS.length, 'each card its own ASIN');
+    assert.equal(amazonAnchors(html).length, CARDS.length, 'no other Amazon link on the page');
+    assert.equal(html.split(DISCLOSURE).length - 1, CARDS.length, 'the disclosure on each card, nowhere else');
     assert.doesNotMatch(html, /\$\s?\d/, "no prices (Amazon's rules)");
+  });
+
+  test("each board's card shows its photo, with alt text and its size, copied unchanged from hardware/<board>/images/photo-small.jpg", () => {
+    const html = fs.readFileSync(path.join(site, 'index.html'), 'utf8');
+    for (const { id, board } of CARDS) {
+      const imgs = [...card(html, id).matchAll(/<img\b[^>]*>/g)].map((m) => m[0]);
+      assert.equal(imgs.length, 1, `${id}: one photo`);
+      assert.match(imgs[0], new RegExp(`\\bsrc="${pagePhoto(board).replaceAll('.', '\\.')}"`), id);
+      assert.match(imgs[0], /\balt="[^"]{20,}"/, `${id}: the photo says what it shows`);
+      const data = fs.readFileSync(boardPhoto(board));
+      const { size } = jpegSegments(data);
+      assert.match(imgs[0], new RegExp(`\\bwidth="${size.width}" height="${size.height}"`), `${id}: its own size, so nothing moves as it loads`);
+      assert.deepEqual(fs.readFileSync(path.join(site, pagePhoto(board))), data, `${board}'s photo is copied unchanged`);
+    }
+    assert.deepEqual(fs.readdirSync(path.join(site, 'img')).sort(), BOARDS.map((b) => `${b.id}.jpg`).sort(), 'only the photos the page shows');
+    assert.equal([...html.matchAll(/<img\b/g)].length, CARDS.length, 'no other image on the page');
   });
 
   test('the notices: this project, the firmware, the page and the long licence texts', () => {
@@ -441,6 +457,19 @@ describe('refuses', () => {
       if (saved === undefined) delete process.env.IDF_PATH;
       else process.env.IDF_PATH = saved;
     }
+  });
+
+  test("a board without its photo, before writing anything", () => {
+    // A hardware/ with the LCD-1.46's photo only.
+    const hardware = out();
+    fs.mkdirSync(path.dirname(boardPhoto(LCD, hardware)), { recursive: true });
+    fs.copyFileSync(boardPhoto(LCD), boardPhoto(LCD, hardware));
+    const target = path.join(out(), 'dist');
+    assert.throws(
+      () => writePackage({ pack: readFirmwares(builds()), out: target, hardware }),
+      (err) => err instanceof PackageError && /^no photo for waveshare-amoled-1\.8: its card on the page shows .*waveshare-amoled-1\.8\/images\/photo-small\.jpg, which is missing$/.test(err.message),
+    );
+    assert.ok(!fs.existsSync(target), 'nothing written');
   });
 
   test('an output folder it did not make', () => {

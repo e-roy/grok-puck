@@ -17,6 +17,7 @@ const TYPES = {
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.jpg': 'image/jpeg',
   '.txt': 'text/plain; charset=utf-8',
   '.bin': 'application/octet-stream',
 };
