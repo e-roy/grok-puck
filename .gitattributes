@@ -2,5 +2,6 @@
 * text=auto eol=lf
 
 *.png binary
+*.jpg binary
 # Exported meshes: large, generated from the .scad sources; no text diffs.
 *.stl -diff linguist-generated
