@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { BOT_STATES, type Desk, type Outcome } from './desk.ts';
 import { bearer, KEY_LENGTH, keyMatches } from './keys.ts';
 import type { Store } from './store.ts';
+import type { Via } from './turns.ts';
 
 export const VERSION = '0.1.0';
 
@@ -26,12 +27,15 @@ export interface McpCall {
   tool: string;
   argumentNames: string[];
   headerNames: string[];
+  /** For a desk tool call: the bot it went to, and how it was found (spec §5.5). */
+  bot?: string;
+  via?: Via;
 }
 
 export class McpActivity {
   readonly calls: McpCall[] = [];
 
-  record(req: FastifyRequest, refused?: string): void {
+  record(req: FastifyRequest, refused?: string): McpCall {
     const messages = (Array.isArray(req.body) ? req.body : [req.body]).slice(0, 10) as Array<{ method?: unknown; params?: unknown }>;
     const params = (m: { params?: unknown }) => (m?.params ?? {}) as Record<string, unknown>;
     const init = messages.find((m) => m?.method === 'initialize');
@@ -39,7 +43,7 @@ export class McpActivity {
     const call = messages.find((m) => m?.method === 'tools/call');
     const args = call ? params(call).arguments : undefined;
     const methods = messages.filter((m) => m?.method !== undefined).map((m) => String(m.method));
-    this.calls.unshift({
+    const recorded: McpCall = {
       at: new Date().toISOString(),
       ...(refused === undefined ? {} : { refused }),
       userAgent: String(req.headers['user-agent'] ?? ''),
@@ -49,8 +53,10 @@ export class McpActivity {
       tool: call ? String(params(call).name ?? '') : '',
       argumentNames: args && typeof args === 'object' ? Object.keys(args) : [],
       headerNames: Object.keys(req.headers).sort(),
-    });
+    };
+    this.calls.unshift(recorded);
     this.calls.length = Math.min(this.calls.length, 30);
+    return recorded;
   }
 }
 
@@ -74,8 +80,8 @@ export async function handleMcp(
     await reply.code(405).header('allow', 'POST').send({ error: 'method not allowed' });
     return;
   }
-  ctx.activity.record(req);
-  const server = buildServer(ctx.desk);
+  const recorded = ctx.activity.record(req);
+  const server = buildServer(ctx.desk, recorded);
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   reply.hijack();
   reply.raw.on('close', () => {
@@ -130,8 +136,16 @@ export function describeKey(req: FastifyRequest, keyHash: string): string {
   return notes.join('; ');
 }
 
-function buildServer(desk: Desk): McpServer {
+function buildServer(desk: Desk, recorded: McpCall): McpServer {
   const server = new McpServer({ name: 'grok-puck', version: VERSION }, { instructions: INSTRUCTIONS });
+  // Recent calls show which bot a tool call went to; the turn records keep the rest (spec §5.11).
+  const result = (outcome: Outcome) => {
+    if (outcome.bot) {
+      recorded.bot = outcome.bot;
+      if (outcome.via) recorded.via = outcome.via;
+    }
+    return toolResult(outcome);
+  };
   const target = {
     request_id: z
       .string()
@@ -163,7 +177,7 @@ function buildServer(desk: Desk): McpServer {
         ...target,
       },
     },
-    async (args) => result(desk.say(args.text, { requestId: args.request_id, device: args.device, bot: args.bot })),
+    async (args) => result(desk.say(args.text, { requestId: args.request_id, device: args.device, bot: args.bot }, { fromBot: true })),
   );
 
   server.registerTool(
@@ -176,7 +190,7 @@ function buildServer(desk: Desk): McpServer {
         'done without saying anything.',
       inputSchema: { state: z.enum(BOT_STATES), ...target },
     },
-    async (args) => result(desk.status(args.state, { requestId: args.request_id, device: args.device, bot: args.bot })),
+    async (args) => result(desk.status(args.state, { requestId: args.request_id, device: args.device, bot: args.bot }, { fromBot: true })),
   );
 
   server.registerTool(
@@ -187,12 +201,12 @@ function buildServer(desk: Desk): McpServer {
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },
-    async () => result(desk.devicesSummary()),
+    async () => toolResult(desk.devicesSummary()),
   );
 
   return server;
 }
 
-function result(outcome: Outcome) {
+function toolResult(outcome: Outcome) {
   return { content: [{ type: 'text' as const, text: outcome.message }], isError: !outcome.ok };
 }

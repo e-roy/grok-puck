@@ -124,6 +124,20 @@ export function babble(text: string, sampleRate = SPEAKER_RATE): Buffer {
   return tones(parts, sampleRate, MOCK_VOICE.level);
 }
 
+/**
+ * When the bot starts waiting for the owner (spec §4.3.1): the mock voice's chirps, three of them, the
+ * last rising like a question. In the voice's range and at its level, well above the error tones.
+ */
+export const ATTENTION_CHIRP: Tone[] = [
+  { hz: 1000, toHz: 900, ms: 110, gapMs: 50 },
+  { hz: 1150, toHz: 1050, ms: 110, gapMs: 60 },
+  { hz: 950, toHz: 1320, ms: 220 },
+];
+
+export function attentionChirp(sampleRate = SPEAKER_RATE): Buffer {
+  return tones(ATTENTION_CHIRP, sampleRate, MOCK_VOICE.level);
+}
+
 /** Root-mean-square level of 16-bit PCM, from 0 to 1. */
 export function rms(pcm: Buffer): number {
   const n = Math.floor(pcm.length / 2);

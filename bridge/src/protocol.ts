@@ -4,7 +4,8 @@
 //   hello          first message: who it is, its key once approved, its Wi-Fi (firmware 0.6.0+),
 //                  what it can do beyond 0.6.0 (features: "speaking", firmware 0.6.1+), and its board
 //                  with that board's hardware (board: "waveshare-amoled-1.8"; features: "touch",
-//                  "microphone", "speaker"; firmware 0.6.2+)
+//                  "microphone", "speaker"; firmware 0.6.2+); "attention": it shows "waiting" with
+//                  the "!" and the hop (firmware 0.6.3+)
 //   listen.start   a hold began: the microphone opened; binary frames (16 kHz PCM) follow
 //   listen.end     the finger lifted: send what was heard          listen.cancel   drop it
 //   played         a clip finished (or was stopped on the device)
@@ -18,7 +19,8 @@
 //   welcome        approved: the device key to store and send in every later hello
 //   config         name, bot avatar, volume, mute, longest message
 //   show           the state to display (idle, thinking, working, waiting, error), and "speaking"
-//                  while a Listen page plays its speech (only to devices whose hello lists "speaking")
+//                  while a Listen page plays its speech (only to devices whose hello lists "speaking").
+//                  "waiting": the bot waits for the owner; firmware 0.6.3 shows it as attention
 //   play.start     a clip begins; binary frames (24 kHz PCM) follow, then play.end
 //   stop           stop playing now
 //   wifi.setup     open the setup network for 10 minutes and stay online (from the admin page)
@@ -54,6 +56,8 @@ export type PageState = ShownState | 'listening';
 
 /** In a device's hello: it can show "speaking" on request while its speech plays elsewhere. */
 export const FEATURE_SPEAKING = 'speaking';
+/** In a device's hello: it shows "waiting" as attention, with the "!" and the hop (firmware 0.6.3, spec §4.3.1). */
+export const FEATURE_ATTENTION = 'attention';
 
 export const DEVICE_ID = /^[A-Za-z0-9:_-]{1,64}$/;
 /** A board's id, as the firmware names it: "waveshare-amoled-1.8". */

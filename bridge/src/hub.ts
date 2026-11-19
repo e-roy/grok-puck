@@ -37,6 +37,11 @@ export type PlayResult = 'played' | 'stopped' | 'offline' | 'muted' | 'failed';
 /** Where a clip plays: on the device, on its Listen page, or on both. */
 export type Place = 'device' | 'page' | 'both';
 
+/** Told when a clip's turn comes and it starts playing, and where (for the turn records). */
+export interface PlayHooks {
+  started?: (place: Place) => void;
+}
+
 export interface HubEvents {
   utterance(device: Device, pcm: Buffer): void;
   connected(device: Device): void;
@@ -290,7 +295,7 @@ export class DeviceHub {
   }
 
   /** Plays a clip after whatever is already playing for that device, where `route()` says when its turn comes. */
-  play(id: string, clip: Clip, kind: 'speech' | 'tone', planned: Place | null = this.route(id)): Promise<PlayResult> {
+  play(id: string, clip: Clip, kind: 'speech' | 'tone', planned: Place | null = this.route(id), hooks: PlayHooks = {}): Promise<PlayResult> {
     if (!this.store.device(id)) return Promise.resolve('offline');
     if (this.store.device(id)?.muted) return Promise.resolve('muted');
     if (!planned) return Promise.resolve('offline');
@@ -302,7 +307,7 @@ export class DeviceHub {
     const mine = speaker;
     mine.queued++;
     const result = mine.queue
-      .then(() => this.playTurn(id, mine, clip, kind, planned))
+      .then(() => this.playTurn(id, mine, clip, kind, planned, hooks))
       .catch((err: unknown): PlayResult => {
         this.log.warn({ err, device: id }, 'playback failed');
         return 'failed';
@@ -490,7 +495,7 @@ export class DeviceHub {
 
   // ---- speech: one clip at a time per device, on the device, its Listen page, or both ----
 
-  private async playTurn(id: string, speaker: Speaker, clip: Clip, kind: 'speech' | 'tone', planned: Place): Promise<PlayResult> {
+  private async playTurn(id: string, speaker: Speaker, clip: Clip, kind: 'speech' | 'tone', planned: Place, hooks: PlayHooks): Promise<PlayResult> {
     const device = this.store.device(id);
     if (!device) return 'offline';
     if (device.muted) return 'muted'; // muted while it waited
@@ -513,6 +518,7 @@ export class DeviceHub {
     speaker.turn = turn;
     speaker.onPage = page !== undefined;
     this.sendShown(id); // pages show "speaking"; so does the device, while a page plays
+    hooks.started?.(place);
     try {
       const streams = await Promise.allSettled(turn.outputs.map((o) => this.stream(o, turn.id, clip, kind)));
       const failed = streams.find((s) => s.status === 'rejected');

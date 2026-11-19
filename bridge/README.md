@@ -30,7 +30,8 @@ pnpm start
   <http://127.0.0.1:8788/listen>.
 - Devices and MCP: port 8787 (`ws://<this computer>:8787/device`, `http://<this computer>:8787/mcp`).
 - Data (bots, devices, keys, history) is kept in `bridge/data/state.json`. It holds the webhook and speech
-  API keys, so keep it private.
+  API keys, so keep it private. Next to it, `turns.json` keeps the turn records: what the bot called for
+  each message, without text (the last 30 days, at most 500 turns).
 
 ## Try the whole loop without hardware or Grok Bot
 
@@ -48,13 +49,21 @@ nothing else is needed.
    terminal), and it shows "speaking" while a Listen page plays its speech. `--networks "A,B,C"`
    chooses the names, `--firmware 0.6.0` acts like firmware 0.6.0, `--firmware 0.5` (or
    `--old-firmware`) like firmware before 0.6.0, which reports no networks, `--board
-   waveshare-amoled-1.8` like firmware 0.6.2 on that board (its card shows the board), and typing
-   `signal -70` changes its signal.
+   waveshare-amoled-1.8` like firmware 0.6.2 on that board (its card shows the board),
+   `--firmware 0.6.3` like firmware 0.6.3, which shows "waiting" as attention (the "!" and the hop
+   in its card's preview), and typing `signal -70` changes its signal.
 5. In the fake device, type `talk`. The fake bot receives the message, shows "working", and answers
    "You said: …", which the fake device plays and saves in `.fake/out/` (add `--play` to hear it through
    ffplay). To hold it as long as you like, type `hold`, then `release` to send or `cancel` to drop it;
    meanwhile its card in the admin page (and a Listen page) shows "listening".
-6. In the fake bot, type `say Hello there` (the bot speaking on its own) or `status waiting`.
+6. In the fake bot, type `say Hello there` (the bot speaking on its own) or `status waiting` (the
+   device shows that the bot waits for you, with one chirp, until the bot's next turn or **Clear**
+   on its card). `turn good What's the weather?` answers a typed message as a bot following its
+   instructions would (thinking, working, then the reply); the other behaviours miss parts of them,
+   for the turn records under **History** → **Turns**: `quick`, `ask` (waiting, then a question),
+   `silent` (idle, no reply), `skip-thinking`, `no-reply`, `repeat` and `no-request-id`.
+   `--voice <behaviour>` sets how it answers what is said at the desk (`good` by default), and
+   `--bot "Test Bot"` makes it pass that name in every call, as a second bot's instructions do.
 7. To hear it in the browser instead: open <http://127.0.0.1:8788/listen>, press **Start listening**,
    and set the device's **Speak on** to **The Listen page** in the admin page. Its speech now plays in
    that tab while the fake device shows "speaking"; typing `stop` in the fake device stops it, as a
@@ -100,8 +109,13 @@ routine with a webhook for what you say at the desk. Each step changes the Grok 
 | Tool | What it does |
 |---|---|
 | `desk_say(text, request_id?, device?, bot?)` | Speaks the text on the bot's devices. With a `request_id` from a spoken message, it answers the device that asked. Code blocks and links are skipped when spoken. |
-| `desk_status(state, request_id?, device?, bot?)` | Shows `thinking`, `working`, `waiting` or `idle`. |
+| `desk_status(state, request_id?, device?, bot?)` | Shows `thinking`, `working`, `waiting` or `idle`. `waiting` (the bot needs you) stays until your next message. |
 | `desk_devices()` | Lists the devices: online or not, what each shows, which bot it belongs to. |
+
+Nothing in a call says which bot made it. With several bots, a call finds its bot by its `request_id`,
+its `device` or the `bot` name it passes; a call with none of these goes to the default bot (admin
+page → **Bots**), which is the first bot unless changed. Each call, and the turn it belongs to, shows
+under **History** → **Turns**, checked against the standing instructions.
 
 The webhook body is `{request_id, text, device_id, device_name, bot_name, reply_with}`, plus `recent`
 (the last spoken exchanges) when that option is on for the bot. A 2xx answer only means the run started.
