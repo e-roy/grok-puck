@@ -81,6 +81,8 @@ static void send_hello(void) {
     // listed isn't there. A bridge that doesn't know a name ignores it.
     cJSON *features = cJSON_AddArrayToObject(m, "features");
     cJSON_AddItemToArray(features, cJSON_CreateString("speaking"));
+    // From 0.6.3: "waiting" shows as attention, with the "!" and the hop (spec §4.3.1).
+    cJSON_AddItemToArray(features, cJSON_CreateString("attention"));
     if (BOARD_HAS_TOUCH) cJSON_AddItemToArray(features, cJSON_CreateString("touch"));
     if (BOARD_HAS_MICROPHONE) cJSON_AddItemToArray(features, cJSON_CreateString("microphone"));
     if (BOARD_HAS_SPEAKER) cJSON_AddItemToArray(features, cJSON_CreateString("speaker"));

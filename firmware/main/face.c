@@ -32,6 +32,22 @@ static const char *TAG = "face";
 #define DOTS 3
 #define FRAME_MS 33
 
+// Attention (spec §4.3.1): a round amber badge with a dark "!" at the avatar's upper right, drawn
+// with shapes so it scales like the rest, and two quick hops of the body, eyes and badge, then a rest.
+// No ring: the badge and the hop say it.
+#define BADGE PX(76)       // across, its black rim included
+#define BADGE_RIM PX(6)    // keeps it apart from the body
+#define BADGE_X PX(110)    // its centre, from the face's: inside the round LCD-1.46's circle with room to spare
+#define BADGE_Y PX(-110)
+#define BANG_W PX(11)      // the "!": a bar and a dot
+#define BANG_H PX(27)
+#define BANG_DOT PX(11)
+#define BANG_GAP PX(6)
+#define HOP PX(18)         // the first hop's height; the second is lower
+#define HOP_CYCLE_MS 2600  // two hops, then a rest
+#define BADGE_COLOR 0xfbbf24
+#define BANG_COLOR 0x1f2937
+
 #if BOARD_OLED
 // An OLED wears where pixels stay lit, and the body would sit in one place all day: the whole face
 // drifts slowly around a small loop, a pixel at a time, never more than DRIFT_PX from the centre.
@@ -42,7 +58,7 @@ static int32_t drift_x, drift_y;
 #endif
 
 static const char *STATE_NAMES[FACE_STATE_COUNT] = {
-    "idle", "listening", "thinking", "working", "waiting", "speaking", "error", "offline",
+    "idle", "listening", "thinking", "working", "waiting", "attention", "speaking", "error", "offline",
 };
 static const char *SHAPE_NAMES[FACE_SHAPE_COUNT] = {"blob", "teardrop", "cloud", "hex", "squircle", "circle"};
 
@@ -55,7 +71,9 @@ static uint16_t *body_pixels;
 static lv_obj_t *eyes[2];
 static lv_obj_t *ring;
 static lv_obj_t *dots[DOTS];
+static lv_obj_t *badge;  // attention's "!"
 static lv_obj_t *root;
+static int32_t body_x, body_y;  // where the body sits, from the centre: the drift and the hop
 
 // The setup screen.
 static lv_obj_t *setup_screen;
@@ -207,7 +225,7 @@ static void set_ring(lv_color_t c, lv_opa_t opa, int16_t degrees, int32_t width)
 #define S(v) ((v) * SCALE)
 
 #if BOARD_OLED
-// Moves the ring and body with the drift; the eyes and dots follow it in tick().
+// Moves the ring with the drift; the body, eyes, dots and badge follow it in tick().
 static void drift(int64_t t) {
     const int32_t x = (int32_t)lroundf(DRIFT_PX * sinf((float)(2 * M_PI) * (float)(t % DRIFT_X_MS) / DRIFT_X_MS));
     const int32_t y = (int32_t)lroundf(DRIFT_PX * sinf((float)(2 * M_PI) * (float)(t % DRIFT_Y_MS) / DRIFT_Y_MS));
@@ -215,7 +233,6 @@ static void drift(int64_t t) {
     drift_x = x;
     drift_y = y;
     lv_obj_align(ring, LV_ALIGN_CENTER, x, y);
-    lv_obj_align(body, LV_ALIGN_CENTER, x, y);
 }
 #define DX drift_x
 #define DY drift_y
@@ -223,6 +240,22 @@ static void drift(int64_t t) {
 #define DX 0
 #define DY 0
 #endif
+
+// Moves the body only when its place changes: a redraw of the whole body costs a frame's time.
+static void place_body(int32_t x, int32_t y) {
+    if (x == body_x && y == body_y) return;
+    body_x = x;
+    body_y = y;
+    lv_obj_align(body, LV_ALIGN_CENTER, x, y);
+}
+
+// Attention's hop, in pixels (up is negative): a hop, a lower one, then a rest, over and over.
+static float hop(int64_t since) {
+    const int64_t t = since % HOP_CYCLE_MS;
+    if (t < 260) return -HOP * sinf((float)M_PI * (float)t / 260.0f);
+    if (t >= 300 && t < 520) return -0.7f * HOP * sinf((float)M_PI * (float)(t - 300) / 220.0f);
+    return 0;
+}
 
 static void tick(lv_timer_t *timer) {
     (void)timer;
@@ -239,8 +272,9 @@ static void tick(lv_timer_t *timer) {
     lv += (target - lv) * (target > lv ? 0.5f : 0.12f);
 
     float gx = 0, gy = 0, open = blink(t), wide = 1;
-    bool ring_on = false, dots_on = false;
+    bool ring_on = false, dots_on = false, badge_on = false;
     float orbit_period = 0;
+    int32_t hy = 0;  // the hop: the body, eyes and badge move together
 
     switch (s) {
         case FACE_IDLE:
@@ -269,6 +303,10 @@ static void tick(lv_timer_t *timer) {
             ring_on = true;
             set_ring(accent(), (lv_opa_t)(150 + 105 * sinf(t / 260.0f)), 360, RING_WIDTH);
             break;
+        case FACE_ATTENTION:  // eyes straight at you, the "!" and the hop
+            badge_on = true;
+            hy = (int32_t)lroundf(hop(since));
+            break;
         case FACE_SPEAKING:
             gy = S(-6) * lv;
             wide = 1 + 0.08f * lv;
@@ -296,6 +334,9 @@ static void tick(lv_timer_t *timer) {
     }
 
     show(ring, ring_on);
+    place_body(DX, DY + hy);
+    show(badge, badge_on);
+    if (badge_on) lv_obj_align(badge, LV_ALIGN_CENTER, BADGE_X + DX, BADGE_Y + DY + hy);
     for (int i = 0; i < DOTS; i++) show(dots[i], dots_on);
     if (dots_on) {
         const float base = (float)(2 * M_PI) * (float)(t % (int64_t)orbit_period) / orbit_period;
@@ -311,8 +352,40 @@ static void tick(lv_timer_t *timer) {
     const int32_t ey = (int32_t)(EYE_Y[shape] * BODY / 2 + gy);
     for (int i = 0; i < 2; i++) {
         lv_obj_set_size(eyes[i], w, h);
-        lv_obj_align(eyes[i], LV_ALIGN_CENTER, (int32_t)((i ? EYE_GAP : -EYE_GAP) + gx) + DX, ey + DY);
+        lv_obj_align(eyes[i], LV_ALIGN_CENTER, (int32_t)((i ? EYE_GAP : -EYE_GAP) + gx) + DX, ey + DY + hy);
     }
+}
+
+// The attention badge: an amber disc in a black rim, with a dark "!" (a rounded bar over a dot).
+static lv_obj_t *create_badge(lv_obj_t *screen) {
+    lv_obj_t *disc = lv_obj_create(screen);
+    lv_obj_remove_style_all(disc);
+    lv_obj_set_size(disc, BADGE, BADGE);
+    lv_obj_set_style_radius(disc, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(disc, lv_color_hex(BADGE_COLOR), 0);
+    lv_obj_set_style_bg_opa(disc, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_color(disc, lv_color_black(), 0);
+    lv_obj_set_style_border_width(disc, BADGE_RIM, 0);
+    lv_obj_set_style_border_opa(disc, LV_OPA_COVER, 0);
+    lv_obj_set_clickable(disc, false);
+    lv_obj_t *bar = lv_obj_create(disc);
+    lv_obj_t *dot = lv_obj_create(disc);
+    lv_obj_t *parts[] = {bar, dot};
+    for (int i = 0; i < 2; i++) {
+        lv_obj_remove_style_all(parts[i]);
+        lv_obj_set_style_radius(parts[i], LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_color(parts[i], lv_color_hex(BANG_COLOR), 0);
+        lv_obj_set_style_bg_opa(parts[i], LV_OPA_COVER, 0);
+        lv_obj_set_clickable(parts[i], false);
+    }
+    // The "!" is BANG_H + BANG_GAP + BANG_DOT tall, centred in the disc.
+    const int32_t tall = BANG_H + BANG_GAP + BANG_DOT;
+    lv_obj_set_size(bar, BANG_W, BANG_H);
+    lv_obj_align(bar, LV_ALIGN_CENTER, 0, -tall / 2 + BANG_H / 2);
+    lv_obj_set_size(dot, BANG_DOT, BANG_DOT);
+    lv_obj_align(dot, LV_ALIGN_CENTER, 0, tall / 2 - BANG_DOT / 2);
+    lv_obj_set_hidden(disc, true);
+    return disc;
 }
 
 // ---- public ----
@@ -368,6 +441,7 @@ void face_create(lv_obj_t *screen) {
         lv_obj_set_style_radius(dots[i], LV_RADIUS_CIRCLE, 0);
         lv_obj_set_clickable(dots[i], false);
     }
+    badge = create_badge(screen);  // last, so it sits over the body and the ring
 
     render_body();
     apply_colors();

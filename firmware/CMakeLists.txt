@@ -2,7 +2,7 @@
 # ESP32-S3-Touch-LCD-1.46 into build/; another board is chosen with -D BOARD=<id>, a folder in boards/,
 # in a build folder of its own (firmware/README.md).
 cmake_minimum_required(VERSION 3.22)
-set(PROJECT_VER "0.6.2")  # reported to the bridge as desk-display/<version>
+set(PROJECT_VER "0.6.3")  # reported to the bridge as desk-display/<version>
 
 # A build folder holds one board: switching would mix two boards' settings and objects. The folder
 # remembers its board in a file, which outlives the CMake cache (idf.py deletes the cache when CMake
