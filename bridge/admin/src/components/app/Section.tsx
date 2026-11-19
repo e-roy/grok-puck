@@ -13,6 +13,8 @@ export interface SectionProps {
   data: Overview;
   run: Run;
   voices: Voices;
+  /** The section on screen (every section stays mounted): for work worth doing only while it is seen. */
+  active?: boolean;
 }
 
 export function SectionHeader({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {

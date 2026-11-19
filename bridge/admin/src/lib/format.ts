@@ -8,6 +8,13 @@ export function when(iso: string | undefined): string {
   return today ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' }) : date.toLocaleString();
 }
 
+/** A time to the minute: "14:02" today, with the date otherwise. */
+export function clock(iso: string): string {
+  const date = new Date(iso);
+  const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return new Date().toDateString() === date.toDateString() ? time : `${date.toLocaleDateString()} ${time}`;
+}
+
 /** "just now", "5 min ago", "3 h ago", or the date. */
 export function ago(iso: string | undefined): string {
   if (!iso) return 'never';

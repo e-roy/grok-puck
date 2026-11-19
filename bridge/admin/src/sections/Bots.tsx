@@ -2,7 +2,7 @@
 // Changes are kept in the card until Save; the device shows the look as soon as it is saved.
 import { BotIcon, PlayIcon, PlusIcon, SendIcon } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { api, type Avatar as AvatarSettings, type Bot, type Shape } from '@/api.ts';
+import { api, type Avatar as AvatarSettings, type Bot, type Overview, type Shape } from '@/api.ts';
 import { Avatar } from '@/components/app/Avatar.tsx';
 import { ConfirmButton } from '@/components/app/Confirm.tsx';
 import { SectionHeader, type SectionProps, type Voices } from '@/components/app/Section.tsx';
@@ -24,6 +24,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTi
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -57,6 +58,7 @@ export function Bots({ data, run, voices }: SectionProps) {
         <p className="mb-4 text-sm text-destructive">The voice list isn't available: {voices.error}</p>
       )}
       <div className="flex flex-col gap-4">
+        {data.bots.length > 1 && <DefaultBot data={data} run={run} />}
         {data.bots.map((bot) => (
           <BotCard key={bot.id} bot={bot} shapes={data.shapes} voices={voices} run={run} />
         ))}
@@ -76,6 +78,54 @@ export function Bots({ data, run, voices }: SectionProps) {
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * With several bots: where the calls that name no bot go (spec §5.5). Grok Bot's calls don't say which
+ * bot made them, so the first bot keeps them and every bot added later names itself.
+ */
+function DefaultBot({ data, run }: { data: Overview; run: Run }) {
+  const items = [...data.bots.map((b) => ({ value: b.id, label: b.name })), { value: '', label: 'Nowhere: refuse them' }];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Calls that don&apos;t name a bot</CardTitle>
+        <CardDescription>
+          Grok Bot&apos;s calls don&apos;t say which bot made them. The first bot needs no name in its instructions; every bot added after it
+          names itself (docs/grok-bot-setup.md, step 2).
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Field>
+          <FieldLabel htmlFor="default-bot">They go to</FieldLabel>
+          <Select
+            items={items}
+            value={data.defaultBotId}
+            onValueChange={(v) => {
+              const next = String(v ?? '');
+              if (next !== data.defaultBotId) void run(() => api('PUT', '/api/default-bot', { botId: next }));
+            }}
+          >
+            <SelectTrigger id="default-bot" className="w-full sm:w-80">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {items.map((i) => (
+                <SelectItem key={i.value} value={i.value}>
+                  {i.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <FieldDescription>
+            {data.defaultBotId
+              ? "A bot that forgets its name in a call reaches this bot's devices instead of its own."
+              : "A bot whose instructions name no bot can't reach its devices."}
+          </FieldDescription>
+        </Field>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -14,6 +14,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { ago, when } from '@/lib/format.ts';
+import { VIA } from '@/lib/turns.ts';
 
 export function GrokBot({ data, run }: SectionProps) {
   const [key, setKey] = useState('');
@@ -217,6 +218,7 @@ function CallRow({ call }: { call: McpCall }) {
               refused
             </Badge>
           )}
+          {call.bot && <span className="hidden truncate text-xs text-muted-foreground sm:block">{call.bot}</span>}
           {call.client && <span className="hidden truncate text-xs text-muted-foreground sm:block">{call.client}</span>}
           <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-panel-open:rotate-180" aria-hidden />
         </CollapsibleTrigger>
@@ -226,6 +228,14 @@ function CallRow({ call }: { call: McpCall }) {
               <>
                 <dt className="text-muted-foreground">Refused</dt>
                 <dd className="font-mono break-all">{call.refused}</dd>
+              </>
+            )}
+            {call.bot && (
+              <>
+                <dt className="text-muted-foreground">Bot</dt>
+                <dd>
+                  {call.bot} <span className="text-muted-foreground">({VIA[call.via ?? 'bot']})</span>
+                </dd>
               </>
             )}
             <dt className="text-muted-foreground">Client</dt>

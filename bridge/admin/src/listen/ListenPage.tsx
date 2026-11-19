@@ -35,6 +35,12 @@ export function ListenPage() {
   }, [link]);
   const state = useSyncExternalStore(link.subscribe, link.snapshot);
   const device = state.devices?.find((d) => d.id === state.device);
+  // While the bot waits for the owner, the tab's title says so, for a tab in the background (spec §4.3.1).
+  const [title] = useState(() => document.title);
+  const waiting = state.connection === 'open' && state.shown === 'waiting';
+  useEffect(() => {
+    document.title = waiting ? `(!) ${title}` : title;
+  }, [waiting, title]);
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -140,7 +146,14 @@ function Picker({ devices, value, onChange }: { devices: PageDevice[]; value: st
 function Player({ state, device, link }: { state: ListenState; device: PageDevice; link: ListenLink }) {
   const connected = state.connection === 'open';
   const speaking = state.playing || state.shown === 'speaking';
-  const avatar: AvatarState = !connected ? 'offline' : speaking ? 'speaking' : ((STATE_TEXT[state.shown] ? state.shown : 'idle') as AvatarState);
+  // "waiting" shows as attention here whatever the device's firmware: this page is the bridge's own.
+  const avatar: AvatarState = !connected
+    ? 'offline'
+    : speaking
+      ? 'speaking'
+      : state.shown === 'waiting'
+        ? 'attention'
+        : ((STATE_TEXT[state.shown] ? state.shown : 'idle') as AvatarState);
   const playsHere = state.started && !state.paused && state.role === 'here';
   const label = !connected ? 'Not connected' : state.playing ? 'Speaking here' : (STATE_TEXT[state.shown] ?? 'Idle');
   const [starting, setStarting] = useState(false);

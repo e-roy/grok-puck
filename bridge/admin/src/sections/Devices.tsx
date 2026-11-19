@@ -1,7 +1,8 @@
 // Devices: a highlighted card for each device waiting for approval, and a card per approved device
-// with its look and state, its firmware version, its settings (Speak on among them, with its Listen
-// page), "Try it", its Wi-Fi, and (set apart) Forget all networks and Forget.
-import { EllipsisVerticalIcon, ExternalLinkIcon, SendIcon, TabletSmartphoneIcon } from 'lucide-react';
+// with its look and state (and, while its bot waits for the owner, since when, with Clear), its
+// firmware version, its settings (Speak on among them, with its Listen page), "Try it", its Wi-Fi,
+// and (set apart) Forget all networks and Forget.
+import { BellRingIcon, EllipsisVerticalIcon, ExternalLinkIcon, SendIcon, TabletSmartphoneIcon } from 'lucide-react';
 import { useState } from 'react';
 import { api, type Bot, type Device, type SpeakOn } from '@/api.ts';
 import { Avatar, avatarState } from '@/components/app/Avatar.tsx';
@@ -28,7 +29,7 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { boardBadge } from '@/lib/board.ts';
 import { firmwareVersion } from '@/lib/firmware.ts';
-import { ago, enc } from '@/lib/format.ts';
+import { ago, clock, enc } from '@/lib/format.ts';
 import { pushList, readList } from '@/lib/local.ts';
 import { type Run, showError } from '@/lib/run.ts';
 import { Checklist } from './Checklist.tsx';
@@ -202,7 +203,11 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
   return (
     <Card>
       <CardHeader className="flex items-center gap-4">
-        <Avatar avatar={bot?.avatar ?? GREY} size={64} state={avatarState(device.showing, online, device.speaking !== null)} />
+        <Avatar
+          avatar={bot?.avatar ?? GREY}
+          size={64}
+          state={avatarState(device.showing, online, device.speaking !== null, device.features.includes('attention'))}
+        />
         <div className="min-w-0 flex-1">
           <CardTitle className="flex flex-wrap items-center gap-2">
             <span className="truncate">{device.name}</span>
@@ -220,6 +225,7 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
           <p className="mt-0.5 text-xs text-muted-foreground">
             <span className="font-mono">{device.id}</span>
           </p>
+          {device.attention && <Attention device={device} since={device.attention.since} run={run} />}
         </div>
         <CardAction>
           <DropdownMenu>
@@ -339,7 +345,30 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
 function doing(device: Device): string {
   if (device.showing === 'listening') return 'listening';
   if (device.speaking) return `speaking ${WHERE[device.speaking]}`;
+  if (device.showing === 'waiting') return 'waiting for you';
   return `showing ${device.showing ?? 'idle'}`;
+}
+
+/** The bot waits for the owner (spec §4.3.1): since when, and Clear, for a bot that never calls again. */
+function Attention({ device, since, run }: { device: Device; since: string; run: Run }) {
+  const quiet = !device.features.includes('attention');
+  return (
+    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+      <span className="inline-flex items-start gap-1.5 font-medium">
+        <BellRingIcon className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+        Waiting for you since {clock(since)}
+      </span>
+      {quiet && <span className="text-xs text-muted-foreground">(its firmware shows this quietly; 0.6.3 shows the &ldquo;!&rdquo;)</span>}
+      <Button
+        variant="outline"
+        size="xs"
+        aria-label={`Clear: ${device.name} stops showing that the bot is waiting for you`}
+        onClick={() => void run(() => api('DELETE', `/api/devices/${enc(device.id)}/attention`))}
+      >
+        Clear
+      </Button>
+    </p>
+  );
 }
 
 /** Speak on: the device, the Listen page or both; whether a Listen page is ready, and a link to open one. */

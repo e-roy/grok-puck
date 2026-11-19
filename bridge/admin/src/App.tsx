@@ -115,7 +115,7 @@ export function App() {
             SECTIONS.map(({ id, label, Component }) => (
               <div key={id} hidden={id !== section}>
                 <ErrorBoundary where={`the ${label} section`}>
-                  <Component data={data} run={run} voices={voices} />
+                  <Component data={data} run={run} voices={voices} active={id === section} />
                 </ErrorBoundary>
               </div>
             ))
