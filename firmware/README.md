@@ -6,11 +6,12 @@ speaker, Wi-Fi setup from a phone, and the link to the bridge. Design and behavi
 
 | Board | Its id | |
 |---|---|---|
-| Waveshare **ESP32-S3-Touch-LCD-1.46** | `waveshare-lcd-1.46` | round 412×412 LCD; the first board |
-| Waveshare **ESP32-S3-Touch-AMOLED-1.8** (V1 and V2) | `waveshare-amoled-1.8` | 368×448 AMOLED in its own case; being tested |
+| Waveshare **ESP32-S3-Touch-LCD-1.46** | `waveshare-lcd-1.46` | round 412×412 LCD; the first board. Its parts and printed case: [hardware/waveshare-lcd-1.46/](../hardware/waveshare-lcd-1.46/) |
+| Waveshare **ESP32-S3-Touch-AMOLED-1.8** (V1 and V2) | `waveshare-amoled-1.8` | 368×448 AMOLED in its own case. Its parts: [hardware/waveshare-amoled-1.8/](../hardware/waveshare-amoled-1.8/) |
 
 Each board has its own firmware build, from the same code: what differs sits in its folder in
-[boards/](boards/).
+[boards/](boards/). Its hardware (parts, prints, photos) sits in the folder of the same name in
+[hardware/](../hardware/).
 
 ## Install it from the browser
 
