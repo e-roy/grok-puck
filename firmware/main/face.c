@@ -33,8 +33,9 @@ static const char *TAG = "face";
 #define FRAME_MS 33
 
 // Attention (spec §4.3.1): a round amber badge with a dark "!" at the avatar's upper right, drawn
-// with shapes so it scales like the rest, and two quick hops of the body, eyes and badge, then a rest.
-// No ring: the badge and the hop say it.
+// with shapes so it scales like the rest; the body, eyes and badge hop twice, then the avatar turns
+// to one side and the other (its eyes slide round it as on a sphere), rests a moment and starts
+// again, the eyes wide and squashing as it lands. No ring.
 #define BADGE PX(76)       // across, its black rim included
 #define BADGE_RIM PX(6)    // keeps it apart from the body
 #define BADGE_X PX(110)    // its centre, from the face's: inside the round LCD-1.46's circle with room to spare
@@ -43,8 +44,11 @@ static const char *TAG = "face";
 #define BANG_H PX(27)
 #define BANG_DOT PX(11)
 #define BANG_GAP PX(6)
-#define HOP PX(18)         // the first hop's height; the second is lower
-#define HOP_CYCLE_MS 2600  // two hops, then a rest
+#define HOP PX(18)                // the first hop's height; the second is lower
+#define TURN 0.25f                // how far it turns each way after the hops, in radians (about 14°)
+#define TURN_SHIFT PX(10)         // and how far the body leans that way as it turns
+#define EYE_R (0.9f * BODY / 2)   // the sphere the eyes slide round when it turns
+#define ATTENTION_CYCLE_MS 2200   // two hops, a turn each way, a short rest
 #define BADGE_COLOR 0xfbbf24
 #define BANG_COLOR 0x1f2937
 
@@ -249,12 +253,29 @@ static void place_body(int32_t x, int32_t y) {
     lv_obj_align(body, LV_ALIGN_CENTER, x, y);
 }
 
-// Attention's hop, in pixels (up is negative): a hop, a lower one, then a rest, over and over.
-static float hop(int64_t since) {
-    const int64_t t = since % HOP_CYCLE_MS;
-    if (t < 260) return -HOP * sinf((float)M_PI * (float)t / 260.0f);
-    if (t >= 300 && t < 520) return -0.7f * HOP * sinf((float)M_PI * (float)(t - 300) / 220.0f);
-    return 0;
+// Attention's movement, over and over: a hop, a lower one, a turn to one side and then the other
+// (back to the front in a second), the body leaning the way it turns, then a short rest. `x` and `y`
+// in pixels, left and up negative; `turn` in radians, to the right positive; `squash` (0..1) is the
+// eyes' squash as it lands.
+typedef struct {
+    float x, y, turn, squash;
+} bounce_t;
+
+static bounce_t bounce(int64_t since) {
+    const float t = (float)(since % ATTENTION_CYCLE_MS);
+    bounce_t b = {0, 0, 0, 0};
+    if (t < 260) {
+        b.y = -HOP * sinf((float)M_PI * t / 260.0f);
+    } else if (t >= 300 && t < 520) {
+        b.y = -0.7f * HOP * sinf((float)M_PI * (t - 300) / 220.0f);
+    } else if (t >= 560 && t < 1560) {
+        const float swing = sinf((float)(2 * M_PI) * (t - 560) / 1000.0f);
+        b.turn = TURN * swing;
+        b.x = TURN_SHIFT * swing;
+    }
+    if (t >= 260 && t < 340) b.squash = 1 - (t - 260) / 80.0f;  // landing from the first hop
+    if (t >= 520 && t < 600) b.squash = 0.7f * (1 - (t - 520) / 80.0f);  // and the second
+    return b;
 }
 
 static void tick(lv_timer_t *timer) {
@@ -271,10 +292,10 @@ static void tick(lv_timer_t *timer) {
     const float target = s == FACE_SPEAKING && atomic_load(&steady) ? 0.35f + 0.3f * sinf(t * (float)(2 * M_PI) / 900.0f) : level();
     lv += (target - lv) * (target > lv ? 0.5f : 0.12f);
 
-    float gx = 0, gy = 0, open = blink(t), wide = 1;
+    float gx = 0, gy = 0, open = blink(t), wide = 1, squash = 0, turn = 0;
     bool ring_on = false, dots_on = false, badge_on = false;
     float orbit_period = 0;
-    int32_t hy = 0;  // the hop: the body, eyes and badge move together
+    int32_t hx = 0, hy = 0;  // attention's hop and lean: the body, eyes and badge move together
 
     switch (s) {
         case FACE_IDLE:
@@ -303,10 +324,16 @@ static void tick(lv_timer_t *timer) {
             ring_on = true;
             set_ring(accent(), (lv_opa_t)(150 + 105 * sinf(t / 260.0f)), 360, RING_WIDTH);
             break;
-        case FACE_ATTENTION:  // eyes straight at you, the "!" and the hop
+        case FACE_ATTENTION: {  // eyes wide and straight at you, the "!", the hops and the turns
+            const bounce_t b = bounce(since);
             badge_on = true;
-            hy = (int32_t)lroundf(hop(since));
+            wide = 1.08f;
+            hx = (int32_t)lroundf(b.x);
+            hy = (int32_t)lroundf(b.y);
+            turn = b.turn;
+            squash = b.squash;
             break;
+        }
         case FACE_SPEAKING:
             gy = S(-6) * lv;
             wide = 1 + 0.08f * lv;
@@ -334,9 +361,9 @@ static void tick(lv_timer_t *timer) {
     }
 
     show(ring, ring_on);
-    place_body(DX, DY + hy);
+    place_body(DX + hx, DY + hy);
     show(badge, badge_on);
-    if (badge_on) lv_obj_align(badge, LV_ALIGN_CENTER, BADGE_X + DX, BADGE_Y + DY + hy);
+    if (badge_on) lv_obj_align(badge, LV_ALIGN_CENTER, BADGE_X + DX + hx, BADGE_Y + DY + hy);
     for (int i = 0; i < DOTS; i++) show(dots[i], dots_on);
     if (dots_on) {
         const float base = (float)(2 * M_PI) * (float)(t % (int64_t)orbit_period) / orbit_period;
@@ -347,12 +374,22 @@ static void tick(lv_timer_t *timer) {
         }
     }
 
-    const int32_t h = (int32_t)fmaxf(6, EYE_H * wide * open);
-    const int32_t w = (int32_t)(EYE_W * wide);
+    // A squash makes the eyes wider and shorter for a moment (attention's landings; 0 otherwise).
+    const int32_t h = (int32_t)fmaxf(6, EYE_H * wide * open * (1 - 0.3f * squash));
+    const int32_t w = (int32_t)(EYE_W * wide * (1 + 0.2f * squash));
     const int32_t ey = (int32_t)(EYE_Y[shape] * BODY / 2 + gy);
     for (int i = 0; i < 2; i++) {
-        lv_obj_set_size(eyes[i], w, h);
-        lv_obj_align(eyes[i], LV_ALIGN_CENTER, (int32_t)((i ? EYE_GAP : -EYE_GAP) + gx) + DX, ey + DY + hy);
+        float x = i ? EYE_GAP : -EYE_GAP;
+        int32_t wi = w;
+        if (turn != 0) {
+            // Attention's turn: the eyes slide round the body as if it were a sphere, and the one going
+            // round the far side narrows (at no turn this is the usual place and width).
+            const float rest = asinf(EYE_GAP / EYE_R), a = (i ? rest : -rest) + turn;
+            x = EYE_R * sinf(a);
+            wi = (int32_t)(w * cosf(a) / cosf(rest));
+        }
+        lv_obj_set_size(eyes[i], wi, h);
+        lv_obj_align(eyes[i], LV_ALIGN_CENTER, (int32_t)(x + gx) + DX + hx, ey + DY + hy);
     }
 }
 

@@ -115,8 +115,8 @@ export function Avatar({ avatar, size = 96, state }: { avatar: AvatarSettings; s
         <circle cx="50" cy="52" r="47" fill="none" stroke={avatar.color} strokeWidth="3.5" style={motion('avatar-listen', 1.4)} />
       )}
       {state === 'error' && <circle cx="50" cy="52" r="47" fill="none" stroke="var(--destructive)" strokeWidth="3" />}
-      {/* Attention: the body, its eyes and the badge hop together, with no ring (spec §4.3.1). */}
-      <g style={attention ? motion('avatar-hop', 2.6) : undefined}>
+      {/* Attention: the body, its eyes and the badge hop together, then the eyes turn to each side; no ring (spec §4.3.1). */}
+      <g style={attention ? motion('avatar-hop', 2.2) : undefined}>
         <g style={state === 'idle' ? motion('avatar-breathe', 4) : undefined} opacity={offline ? 0.45 : 1}>
           <Body {...avatar} />
           {offline ? (
@@ -126,17 +126,19 @@ export function Avatar({ avatar, size = 96, state }: { avatar: AvatarSettings; s
             </>
           ) : (
             <g transform={`translate(0 ${look})`}>
-              {wide ? (
-                <>
-                  <rect x="35.5" y="37" width="9" height="20" rx="4.5" fill={eyes} />
-                  <rect x="55.5" y="37" width="9" height="20" rx="4.5" fill={eyes} />
-                </>
-              ) : (
-                <>
-                  <rect x="36" y="38" width="8" height="18" rx="4" fill={eyes} />
-                  <rect x="56" y="38" width="8" height="18" rx="4" fill={eyes} />
-                </>
-              )}
+              <g style={attention ? motion('avatar-turn', 2.2) : undefined}>
+                {wide ? (
+                  <>
+                    <rect x="35.5" y="37" width="9" height="20" rx="4.5" fill={eyes} />
+                    <rect x="55.5" y="37" width="9" height="20" rx="4.5" fill={eyes} />
+                  </>
+                ) : (
+                  <>
+                    <rect x="36" y="38" width="8" height="18" rx="4" fill={eyes} />
+                    <rect x="56" y="38" width="8" height="18" rx="4" fill={eyes} />
+                  </>
+                )}
+              </g>
             </g>
           )}
         </g>

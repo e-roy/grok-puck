@@ -150,10 +150,13 @@ card, a sign-in, a choice), it calls `desk_status("waiting")`, as its standing i
 (`docs/grok-bot-setup.md`). The desk then shows it clearly and keeps showing it until you're back, so
 that coming back to the desk you see that the app is waiting for you.
 
-- **How it looks:** the avatar hops twice (about 18 design pixels up, a quarter of a second each),
-  rests about two seconds, and hops again. Its eyes look straight at you, and a round amber badge
-  with a dark "!" (76 design pixels across) sits at its upper right and moves with it. There is no
-  ring: the badge and the hop say it (tried on the AMOLED-1.8, 19 Nov 2026). The badge is drawn with
+- **How it looks:** an excited little dance, about 2.2 s a round: the avatar hops twice (about 18
+  design pixels up, then lower, a quarter of a second each), turns to one side and then the other
+  (it leans 10 design pixels that way while its eyes slide round it as if it were a sphere, up to
+  about 14°, the far eye narrowing; back to the front in a second), rests a moment and starts
+  again. Its eyes are a little wider and squash as it lands, and a round amber badge with a dark
+  "!" (76 design pixels across) sits at its upper right and moves with it. There is no ring: the badge and the movement say it (tried on the
+  AMOLED-1.8, 19 Nov 2026). The badge is drawn with
   shapes rather than a font, so it scales with the face (§4.8), and stays well inside the LCD-1.46's
   circle. On an OLED the hop and the slow drift move the badge with the rest of the face.
 - **The sound:** when attention starts, a short chirp in the mock voice's style (§5.6: three chirps,
