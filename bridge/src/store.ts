@@ -54,6 +54,7 @@ export interface Device {
   firstSeen: string;
   lastSeen: string;
   wifi?: DeviceWifi; // absent for firmware that doesn't report it
+  attention?: string; // since when its bot has been waiting for the owner (spec §4.3.1); absent otherwise
 }
 
 export interface SpeechService {
@@ -88,6 +89,7 @@ export interface State {
   mcpKeyEnd: string; // its last 4 characters, so the admin page can tell keys apart ('' for older keys)
   mcpKeyCreatedAt: string;
   bots: Bot[];
+  defaultBotId: string; // where calls that name no bot go when there are several bots; '' refuses them (spec §5.5)
   devices: Device[];
   speech: Speech;
   history: HistoryEntry[];
@@ -104,6 +106,7 @@ function defaultState(): State {
     mcpKeyEnd: '',
     mcpKeyCreatedAt: '',
     bots: [],
+    defaultBotId: '',
     devices: [],
     speech: {
       tts: { provider: 'mock', baseUrl: '', apiKey: '', model: 'kokoro' },
@@ -173,6 +176,7 @@ function load(file: string): State {
   return {
     ...fresh,
     ...saved,
+    defaultBotId: typeof saved.defaultBotId === 'string' ? saved.defaultBotId : '',
     // Keep only the current timing fields (the countdown and silence settings left with hold-to-talk),
     // and fill in what older data files don't have.
     devices: (saved.devices ?? []).map((d) => ({
@@ -180,6 +184,7 @@ function load(file: string): State {
       speakOn: SPEAK_ON.includes(d.speakOn) ? d.speakOn : 'device',
       features: Array.isArray(d.features) ? d.features : [],
       board: typeof d.board === 'string' ? d.board : '',
+      attention: typeof d.attention === 'string' ? d.attention : undefined, // undefined isn't written back
       timings: { maxListenMs: d.timings?.maxListenMs ?? DEFAULT_TIMINGS.maxListenMs },
     })),
     speech: {

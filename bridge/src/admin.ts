@@ -22,12 +22,14 @@ import type { McpActivity } from './mcp.ts';
 import { DISPLAY_STATES } from './protocol.ts';
 import { checkTtsModels, listModels, makeTts } from './speech.ts';
 import { AVATAR_SHAPES, type Bot, SPEAK_ON, type SpeechService, type Store } from './store.ts';
+import type { TurnLog } from './turns.ts';
 
 export interface AdminContext {
   config: Config;
   store: Store;
   hub: DeviceHub;
   desk: Desk;
+  turns: TurnLog;
   activity: McpActivity;
   publicPort: number;
   /** Replaces Cloudflare Access's published signing keys (tests only). */
@@ -74,7 +76,7 @@ const SpeechPatch = z
   .partial();
 
 export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Promise<void> {
-  const { config, store, hub, desk } = ctx;
+  const { config, store, hub, desk, turns } = ctx;
   const verify =
     config.adminAuth === 'cloudflare-access' ? accessVerifier(config.accessTeamDomain, config.accessAud, ctx.accessKeys) : null;
   // When each request's login ends: a Listen page's socket is closed then, as its next request would be refused.
@@ -133,6 +135,9 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
       voice: body.voice ?? '',
       sendRecent: body.sendRecent ?? false,
     };
+    // The bot that was here alone keeps the calls that name no bot, so its instructions need no change (spec §5.5).
+    const first = store.state.bots.length === 1 && !store.bot(store.state.defaultBotId) ? store.state.bots[0] : undefined;
+    if (first) store.state.defaultBotId = first.id;
     store.state.bots.push(bot);
     // A device without a bot can't speak, so a new bot is chosen for those.
     const chosen = store.state.devices.filter((d) => d.status === 'approved' && !store.bot(d.botId));
@@ -142,7 +147,8 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     }
     store.changed();
     const where = chosen.length ? ` and chosen for ${chosen.map((d) => d.name).join(', ')}` : '';
-    return { id: bot.id, message: `${bot.name} added${where}: now set its avatar and voice.` };
+    const unnamed = first ? ` Calls that don't name a bot still go to ${first.name}; ${bot.name}'s instructions name it.` : '';
+    return { id: bot.id, message: `${bot.name} added${where}: now set its avatar and voice.${unnamed}` };
   });
 
   app.patch('/api/bots/:id', async (req, reply) => {
@@ -167,13 +173,28 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     const bot = store.bot(param(req, 'id'));
     if (!bot) return notFound(reply);
     store.state.bots = store.state.bots.filter((b) => b !== bot);
+    if (store.state.defaultBotId === bot.id) {
+      store.state.defaultBotId = store.state.bots.length === 1 ? store.state.bots[0].id : '';
+    }
     for (const device of store.state.devices) {
       if (device.botId !== bot.id) continue;
+      desk.clearAttention(device.id); // no bot is waiting on it any more
       device.botId = '';
       hub.sendConfig(device);
     }
     store.changed();
     return { ok: true };
+  });
+
+  // Where calls that name no bot go when several bots use the bridge; '' refuses them (spec §5.5).
+  app.put('/api/default-bot', async (req, reply) => {
+    const body = parse(z.object({ botId: z.string().max(64) }), req.body, reply);
+    if (!body) return;
+    const bot = body.botId ? store.bot(body.botId) : undefined;
+    if (body.botId && !bot) return bad(reply, 'Unknown bot.');
+    store.state.defaultBotId = bot?.id ?? '';
+    store.changed();
+    return { ok: true, message: bot ? `Calls that don't name a bot go to ${bot.name}.` : "Calls that don't name a bot are refused." };
   });
 
   app.post('/api/bots/:id/test', async (req, reply) => {
@@ -205,6 +226,7 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     if (body.botId && !store.bot(body.botId)) return bad(reply, 'Unknown bot.');
     const { timings, ...rest } = body;
     const muting = body.muted === true && !device.muted;
+    if (body.botId !== undefined && body.botId !== device.botId) desk.clearAttention(device.id); // another bot isn't waiting
     Object.assign(device, rest);
     if (timings) device.timings = { ...device.timings, ...timings };
     store.changed();
@@ -261,6 +283,32 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     if (!body) return;
     const outcome = desk.say(body.text, { device: device.id }, { allowRepeat: true });
     return outcome.ok ? outcome : bad(reply, outcome.message);
+  });
+
+  // Clear: the device stops showing that its bot waits for the owner (spec §4.3.1).
+  app.delete('/api/devices/:id/attention', async (req, reply) => {
+    const device = store.device(param(req, 'id'));
+    if (!device) return notFound(reply);
+    if (!desk.clearAttention(device.id)) return { ok: true, message: `${device.name} wasn't showing that.` };
+    store.addHistory({ kind: 'device', ok: true, deviceId: device.id, detail: 'attention cleared from the admin page' });
+    return { ok: true, message: `${device.name} no longer shows that the bot is waiting for you.` };
+  });
+
+  // The turn records (spec §5.11): read only while the History's Turns view is open.
+  app.get('/api/turns', async (req) => {
+    const query = req.query as { bot?: unknown; limit?: unknown };
+    const limit = Math.min(500, Math.max(1, Number(query.limit) || 100));
+    return turns.list({ bot: typeof query.bot === 'string' ? query.bot : undefined, limit });
+  });
+
+  app.get('/api/turns/export', async (req, reply) => {
+    const bot = (req.query as { bot?: unknown }).bot;
+    const exported = turns.export(typeof bot === 'string' && bot ? bot : undefined);
+    const day = exported.exported.slice(0, 10);
+    return reply
+      .header('content-disposition', `attachment; filename="turns-${day}.json"`)
+      .type('application/json')
+      .send(JSON.stringify(exported, null, 2));
   });
 
   app.post('/api/devices/:id/show', async (req, reply) => {
@@ -377,6 +425,7 @@ function overview(ctx: AdminContext) {
   return {
     devices: s.devices.map(({ keyHash: _hidden, ...d }) => ({
       ...d,
+      attention: d.attention ? { since: d.attention } : null, // its bot waits for the owner (spec §4.3.1)
       wifi: d.wifi ?? null, // null: its firmware doesn't report its networks
       online: hub.isOnline(d.id),
       waiting: hub.isWaiting(d.id),
@@ -385,6 +434,7 @@ function overview(ctx: AdminContext) {
       listen: hub.listenSummary(d.id), // its Listen pages: how many are open, whether one is ready
     })),
     bots: s.bots.map((b) => ({ ...b, webhookKey: masked(b.webhookKey), webhookKeySet: Boolean(b.webhookKey) })),
+    defaultBotId: store.bot(s.defaultBotId) ? s.defaultBotId : '', // where calls that name no bot go (spec §5.5)
     speech: { tts: service(s.speech.tts), stt: { ...service(s.speech.stt), language: s.speech.stt.language, mockText: s.speech.stt.mockText } },
     mcp: {
       keySet: Boolean(s.mcpKeyHash),

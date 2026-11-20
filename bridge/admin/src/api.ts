@@ -42,6 +42,7 @@ export interface Device {
   showing: string | null; // what it shows; "listening" while the owner holds it
   speaking: SpeakOn | null; // where its speech plays right now
   listen: { open: number; ready: boolean }; // its Listen pages: how many are open, and whether one is ready
+  attention: { since: string } | null; // its bot waits for the owner (spec §4.3.1)
 }
 
 export interface Bot {
@@ -73,6 +74,51 @@ export interface McpCall {
   tool: string;
   argumentNames: string[];
   headerNames: string[];
+  /** For a desk tool call: the bot it went to, and how it was found. */
+  bot?: string;
+  via?: Via;
+}
+
+/** How a call found its bot (spec §5.5). */
+export type Via = 'request' | 'device' | 'bot' | 'only' | 'default';
+
+/** One event in a turn record (spec §5.11): a call, the webhook, its speech, attention, or "no answer". */
+export type TurnEvent =
+  | {
+      ms: number;
+      call: 'desk_status' | 'desk_say';
+      state?: string;
+      chars?: number;
+      spoken?: number;
+      request_id: boolean;
+      via?: Via;
+      ok: boolean;
+      answer: string;
+      repeat?: number;
+      history?: number;
+    }
+  | { ms: number; webhook: 'sent' | 'failed'; request_id: string; chars: number; answer?: string }
+  | { ms: number; speech: 'started' | 'played' | 'stopped' | 'kept' | 'muted' | 'failed' | 'offline'; device: string; place?: string }
+  | { ms: number; attention: 'started' | 'ended'; device: string }
+  | { ms: number; no_answer: true };
+
+export type CheckName = 'thinking_first' | 'ended' | 'request_id' | 'question_spoken' | 'no_repeats' | 'no_errors';
+export type CheckResult = 'pass' | 'fail' | 'n/a' | 'pending';
+
+/** What the bot called for one message, checked against its standing instructions (spec §5.11). */
+export interface Turn {
+  id: number;
+  bot: string;
+  kind: 'typed' | 'voice';
+  request_id?: string;
+  devices: string[];
+  start: string;
+  end: string;
+  open: boolean;
+  events: TurnEvent[];
+  checks: Record<CheckName, CheckResult>;
+  notes: string[];
+  timings: Record<string, number>;
 }
 
 export interface HistoryEntry {
@@ -90,6 +136,7 @@ export interface HistoryEntry {
 export interface Overview {
   devices: Device[];
   bots: Bot[];
+  defaultBotId: string; // where calls that name no bot go when there are several bots; '' refuses them
   speech: { tts: Service; stt: Service & { language: string; mockText: string } };
   mcp: { keySet: boolean; keyEnd: string; keyCreatedAt: string; url: string; calls: McpCall[] };
   history: HistoryEntry[];

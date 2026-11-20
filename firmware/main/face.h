@@ -13,7 +13,8 @@ typedef enum {
     FACE_LISTENING,  // while the owner holds the screen
     FACE_THINKING,
     FACE_WORKING,
-    FACE_WAITING,  // the bot needs the owner's approval or an answer
+    FACE_WAITING,    // quiet: the device waits for approval in the admin page
+    FACE_ATTENTION,  // the bot waits for the owner: a "!" badge and a hop, until the next message (spec §4.3.1)
     FACE_SPEAKING,
     FACE_ERROR,
     FACE_OFFLINE,

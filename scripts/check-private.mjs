@@ -71,6 +71,7 @@ const FORBIDDEN_PATHS = [
   [/(^|\/)sdkconfig(\.old)?$/, 'a generated sdkconfig (can hold Wi-Fi credentials)'],
   [/^bridge\/data\//, "the bridge's data (keys, devices, history)"],
   [/(^|\/)state\.json$/, "a bridge state file (keys, devices, history)"],
+  [/(^|\/)turns\.json(\.unreadable)?$/, "a bridge's turn records (its bots, devices and timings)"],
   [/^private\//, 'private notes'],
   [/(^|\/)CLAUDE\.local\.md$/, 'personal instructions'],
   [/\.(pem|key|p12|pfx)$/, 'a key or certificate file'],

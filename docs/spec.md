@@ -6,7 +6,10 @@ what works.** Agreed on 12 Nov 2026 and not built yet: **xAI as a speech service
 0.6.1), with "listening" and **Stop listening** added on 14 Nov 2026. **Firmware releases and the web
 installer** (§4.7, milestone M9) are built, and v0.6.0 was released on 13 Nov 2026. Agreed and built
 on 15 Nov 2026: **boards and what they can do** (§4.8, milestone M10), with a second board, the
-Waveshare ESP32-S3-Touch-AMOLED-1.8 (firmware 0.6.2), now supported. Items marked
+Waveshare ESP32-S3-Touch-AMOLED-1.8 (firmware 0.6.2), now supported. Agreed on 19 Nov 2026 and built,
+tried on a test bot on 20 Nov 2026: **turn records**, which show what the bot called and check it
+against its standing instructions (§5.11, milestone M11), and **attention**: the device shows
+clearly that the bot waits for you, until your next message (§4.3.1, firmware 0.6.3). Items marked
 *(proposal)* are suggestions you can change; items marked *(to test)* depend on how Grok Bot actually
 behaves, and get checked at milestone M2.
 
@@ -89,8 +92,10 @@ configuration.
 3. The routine run acts on it like a typed message, then replies through `desk_say(text, request_id)`,
    and the flow continues as in A.3.
 
-**Timing to expect.** One open-source project measured **30 to 40 s** from webhook to the bot's reply
-(two samples, transcription under 1 s). The device must look clearly "busy" for that long.
+**Timing to expect.** On a test bot (20 Nov 2026, three spoken messages) the reply came **8 to 11 s**
+after the webhook, its first desk call 8 to 11 s in; one open-source project had measured 30 to 40 s
+(two samples). Typed messages took about 3 to 20 s from the bot's first call to its reply, the long
+ones using tools. The device must look clearly "busy" for that long.
 
 ---
 
@@ -131,13 +136,59 @@ blob, teardrop, cloud, hex, squircle, circle *(to confirm against the app before
 | listening | holding the screen (the Listen page and the admin page show it too, §5.10) | eyes wide, the ring swells and brightens with the voice level |
 | thinking | bridge (after a voice message) or the bot | eyes look up, dots orbit the rim |
 | working | the bot (`desk_status`) | faster orbit, eyes darting |
-| waiting | the bot needs your approval | eyes on you, soft attention pulse |
+| waiting | the bot needs your answer, your approval or you to act in the app (`desk_status`) | **attention** (§4.3.1): eyes on you, a "!" badge, the avatar hops; a chirp when it starts; until your next message |
+| pending | the device waits for approval in the admin page | eyes on you, a soft pulse of the ring (the look "waiting" had before firmware 0.6.3) |
 | speaking | audio playing (or playing on the Listen page, §5.10: firmware 0.6.1) | body pulses with the audio level (a steady pulse when the audio plays elsewhere) |
 | error | STT/TTS/webhook failure or no answer in 3 min | short shake, red tint, then idle |
 | muted | the admin page | small "muted" mark, no audio |
 
 The screen dims after a stretch with nothing happening and wakes on a touch or a message *(proposal:
 10 min, adjustable)*.
+
+#### 4.3.1 Attention: the bot waits for you *(agreed 19 Nov 2026, firmware 0.6.3)*
+
+When the bot needs you to answer, to approve something or to act in the Grok Bot app (a confirmation
+card, a sign-in, a choice), it calls `desk_status("waiting")`, as its standing instructions ask
+(`docs/grok-bot-setup.md`). The desk then shows it clearly and keeps showing it until you're back, so
+that coming back to the desk you see that the app is waiting for you.
+
+- **How it looks:** an excited little dance, about 2.2 s a round: the avatar hops twice (about 18
+  design pixels up, then lower, a quarter of a second each), turns to one side and then the other
+  (it leans 10 design pixels that way while its eyes slide round it as if it were a sphere, up to
+  about 14°, the far eye narrowing; back to the front in a second), rests a moment and starts
+  again. Its eyes are a little wider and squash as it lands, and a round amber badge with a dark
+  "!" (76 design pixels across) sits at its upper right and moves with it. There is no ring: the badge and the movement say it (tried on the
+  AMOLED-1.8, 19 Nov 2026). The badge is drawn with
+  shapes rather than a font, so it scales with the face (§4.8), and stays well inside the LCD-1.46's
+  circle. On an OLED the hop and the slow drift move the badge with the rest of the face.
+- **The sound:** when attention starts, a short chirp in the mock voice's style (§5.6: three chirps,
+  the last one rising like a question) plays once, where the device's speech plays (the device, a
+  Listen page or both). Muted: no sound. A "waiting" while it already shows plays nothing.
+- **What it outlasts:** the bot's spoken question (its `desk_say` in the same turn, §5.11: attention
+  comes back once it has played); the device going offline and reconnecting; a bridge restart (the
+  bridge keeps it in its data file). It doesn't expire: the 10-minute status expiry (§5.7) no longer
+  applies to "waiting".
+- **What ends it:** your next message, once it is being answered.
+  - Typed in the app: the bot's first desk call for it, normally `desk_status("thinking")`. Any desk
+    call from that bot that starts a new turn (§5.11) counts: another status, or a reply that comes
+    after the turn that asked has ended.
+  - Spoken at the desk (or sent with the admin page's test message): when it is sent, since the
+    device shows "thinking" from then on. It ends on every device of that bot.
+  - For a bot that never calls again: **Clear**, next to "Waiting for you" on the device's card in
+    the admin page, for that device.
+
+  A tap doesn't end it: it gives the small wiggle, as during thinking and working.
+- **Elsewhere:** the device's card in the admin page (its preview hops with the "!", and it says
+  "Waiting for you since 14:02") and the Listen page (the same look; while it waits, the tab's title
+  starts with "(!)", so a tab in the background shows it).
+- **The device's own waiting** for approval in the admin page keeps the quiet look, without the "!".
+- **One state, not two:** "waiting" covers attention. The standing instructions already use it for
+  exactly this, so the bot learns nothing new and the device protocol gains no state.
+- **Compatibility:** firmware 0.6.3 lists `attention` in its hello's `features`. Older firmware is
+  sent "waiting" as before and shows its quiet look, and its card's preview shows that look too. The
+  sound, the end and the missing expiry are the bridge's, so they work with any firmware. Firmware
+  0.6.3 on an older bridge shows the new look for "waiting", which that bridge ends after 10 minutes,
+  as before.
 
 ### 4.4 Touch
 **Hold to talk** is the only way to speak: letting go when finished is what a person expects. There
@@ -146,7 +197,7 @@ is no countdown and no silence timeout.
 | When | Hold | Tap *(proposal)* |
 |---|---|---|
 | idle / dimmed | listen while held, send on letting go | wake; a small poke reaction |
-| thinking / working / waiting | listen (a follow-up message) | small wiggle |
+| thinking / working / waiting | listen (a follow-up message; it ends attention, §4.3.1) | small wiggle (attention stays) |
 | speaking (here, or on a Listen page) | stop speaking and listen | stop speaking, wherever it plays |
 
 - A press counts as a hold after **0.3 s**; a shorter touch is a tap. Recording starts at the touch
@@ -443,7 +494,8 @@ One WebSocket per device: JSON control messages plus binary audio frames.
     names only; from firmware 0.6.1, what it can do beyond 0.6.0: `"features": ["speaking"]`, it can
     show "speaking" without playing audio; from firmware 0.6.2, its board, `"board":
     "waveshare-amoled-1.8"`, and that board's hardware in `features`: `"touch"`, `"microphone"`,
-    `"speaker"` (§4.8). An older bridge ignores these fields; a board that doesn't look like an id is
+    `"speaker"` (§4.8); from firmware 0.6.3, `"attention"`: it shows "waiting" with the "!" and the
+    hop (§4.3.1). An older bridge ignores these fields; a board that doesn't look like an id is
     dropped, never the hello);
   - `listen.start`, then microphone frames (16 kHz PCM), then `listen.end` or `listen.cancel`;
   - `played` (a clip finished or was stopped);
@@ -491,12 +543,27 @@ One tool for every reply keeps the bot's instructions simple: "call `desk_say` w
 "pass the `request_id` if the message came from the desk". The same text arriving twice within a minute
 is spoken once.
 
-A spoken reply ends "thinking" and "working"; "waiting" stays, because the reply may be the question.
+A spoken reply ends "thinking" and "working"; "waiting" stays, because the reply may be the question,
+until the bot's next turn (§4.3.1).
 
 Without `device`, a call goes to every device attached to the calling bot. A call that names a device
-attached to a different bot is refused. **(to test)** whether the MCP call tells the bridge which bot is
-calling. If it doesn't, the skill's instructions pass the bot's name, and the bridge checks it against
-its list.
+attached to a different bot is refused.
+
+**Which bot is calling.** The MCP call doesn't say. Every Grok Bot call looks the same, whatever the
+bot or the chat: the client "Cursor 1.0.0" on `initialize`, the user agent "Cursor/1.0.0" and the
+same header names (seen 19 Nov 2026). Custom MCP servers are also shared by every bot on the account.
+So a call finds its bot by, in this order:
+1. its `request_id` (a voice turn's, which belongs to one bot);
+2. its `device`;
+3. the `bot` name it passes;
+4. with none of these: the only bot, or with several bots the **default bot**, chosen in the admin
+   page (§5.8). When a second bot is added, the default is set to the bot that was already there,
+   so that bot's instructions never need to change; each bot added later passes its name (`bot:
+   "Test Bot"`). With no default (data from an older bridge that already has several bots), such a
+   call is refused, as before.
+
+A call that reached its bot only as the default may have come from another bot that forgot its name:
+turn records note how each call found its bot (§5.11).
 
 ### 5.6 Speech
 - **Two services, chosen separately.** Text to speech (TTS) and speech to text (STT) each have their
@@ -559,6 +626,8 @@ Its endpoints aren't OpenAI's, so it is a service type of its own (`xai`, next t
 - Device offline: spoken messages wait in a small queue *(proposal: 5 per device)*, unless a Listen
   page plays them (§5.10); states are not queued.
 - No reply within 3 minutes of a voice message: error state and a short tone. A late reply is still spoken.
+- A status the bot never ended ("thinking", "working") goes back to idle after 10 minutes. "Waiting"
+  doesn't expire: it stays until the owner's next message (§4.3.1).
 - Caps against runaway loops *(proposal)*: 120 `desk_say` calls per hour, 600 status calls per hour.
 
 ### 5.8 Admin page
@@ -579,7 +648,8 @@ item links to where it is fixed; when all are done it shrinks to "Ready".
 **Devices.** A highlighted card for a new device waiting for approval (name, bot, Approve). For each
 approved device a card with:
 - the bot's avatar showing what the device shows (idle, listening while the owner holds it,
-  thinking…), online or last seen;
+  thinking…), online or last seen; while the bot waits for the owner, "Waiting for you since 14:02",
+  with **Clear** (§4.3.1);
 - the firmware version as a badge next to the device's name ("0.6.1" from the hello's
   "desk-display/0.6.1", "unknown" when there is none; read as "Firmware 0.6.1"), on the card of a
   device waiting for approval too; and next to it the board as a badge ("AMOLED-1.8", its full name on
@@ -603,6 +673,9 @@ approved device a card with:
   message;
 - Save is enabled when something changed; edits survive switching sections, and leaving or reloading
   the page with unsaved changes asks first. Add bot is a small dialog asking for the name.
+- With two bots or more, above the cards: **Calls that don't name a bot** go to one of them (the
+  default bot, §5.5) or are refused. Adding a second bot sets it to the first, and says so in the
+  toast; deleting the default bot sets it to the only one left, or to none.
 
 **Speech.** A card each for text to speech and speech to text: service (OpenAI-compatible, or xAI:
 §5.6.1), base URL, key (write-only), Find models → model list, and a status line (connected, or what
@@ -611,11 +684,13 @@ went wrong). Text to speech has
 
 **Grok Bot.** The MCP URL and the header with copy buttons; the key is created or replaced through a
 dialog and shown once, with Copy. The setup steps of §6 as a checklist with copyable texts (filled in
-M2). Recent MCP calls as a short list (time, tool, client); the technical details fold open.
+M2). Recent MCP calls as a short list (time, tool, client); the technical details fold open, and for
+a tool call they include the bot it went to and how it was found (§5.5).
 
-**History.** Filters (all, voice, spoken, errors; by device). Each entry has its time, kind, text and
-outcome; its timings are a small bar split into speech, STT, webhook and bot reply, so slow steps
-stand out. Errors are red.
+**History.** Two views, **Entries** and **Turns**. Entries, as before: filters (all, voice, spoken,
+errors; by device); each entry has its time, kind, text and outcome; its timings are a small bar
+split into speech, STT, webhook and bot reply, so slow steps stand out. Errors are red. Turns (§5.11):
+the turn records, newest first, with a filter by bot and **Export**.
 
 **Feedback.** Every action answers with a toast next to where you are: successes fade, errors stay
 until closed. Confirmations are dialogs, not the browser's `confirm`. The page refreshes itself every
@@ -631,7 +706,12 @@ on is a device field (`PATCH /api/devices/<id>` with `{"speakOn": "device" | "pa
 the overview gives each device `speakOn`, `features`, `speaking` (where its speech plays right now)
 and `listen` (`{"open": 1, "ready": true}`: its Listen pages). Its `showing` is `listening` while the
 owner holds the device (§5.10). The firmware badge is worked out in the page from `firmware`, and the
-board badge from the device's `board` (`""` before firmware 0.6.2).
+board badge from the device's `board` (`""` before firmware 0.6.2). For attention and turn records
+(§4.3.1, §5.11) the overview gives each device `attention` (`{"since": "<time>"}` while the bot waits
+for the owner, else `null`) and gives `defaultBotId` (`""` for none); `PUT /api/default-bot` sets it,
+`DELETE /api/devices/<id>/attention` clears attention, `GET /api/turns` lists the turn records (read
+only while the Turns view is open, not every 2 s with the overview) and `GET /api/turns/export`
+downloads them.
 
 ### 5.9 Security
 - Random 256-bit keys. Secrets are entered once and never shown again in full, and never logged.
@@ -727,6 +807,9 @@ is also the way to hear them on headphones.
   lists the `speaking` feature (§5.3); older firmware keeps showing its resting state meanwhile, and a
   tap on it doesn't stop the page (holding it does). *(Later: the voice level sent along, so the pulse
   follows the voice.)*
+- **Attention** (§4.3.1): the page shows it with the device's look whatever the device's firmware,
+  plays its chirp when the device's speech plays there, and starts its tab's title with "(!)" while
+  it lasts.
 - **Stopping:** a tap on the device, or holding it to talk, stops speech wherever it plays. So does
   the page's Stop button, from any page for that device. Stop listening stops speech only in its own
   tab, as it takes the page out (above).
@@ -738,6 +821,94 @@ is also the way to hear them on headphones.
   or the space bar), through the same STT and webhook. With it, the page would work as a desk without
   the device, for example on a laptop when travelling.
 
+### 5.11 Turn records: what the bot called, checked *(agreed 19 Nov 2026, milestone M11)*
+
+The desk shows and speaks only what the bot sends it, and a bot doesn't always follow its standing
+instructions. A turn record makes what it actually did visible: for each turn, its desk calls in
+order with their times, checked against what the instructions ask (`docs/grok-bot-setup.md`, step 2).
+
+**A turn** is the bot's work on one message, per bot:
+- **Voice turn:** opens when the bridge posts the webhook. Its calls carry its `request_id`. A call
+  from the same bot without the `request_id` while it is open joins it too, marked as missing it.
+- **Typed turn:** the bridge doesn't see typed messages, only the bot's calls, so it groups them. A
+  typed turn opens at the bot's first call when none of its turns is open. It closes at
+  `desk_status("idle")`, 30 s after a `desk_say` or a "waiting" with no call since, or 10 minutes
+  after its last call (when the status left showing expires). A "thinking" after a reply or a
+  "waiting" starts a new turn: the owner has answered.
+- **Open checks:** while a turn is open, a check that depends on what is still to come ("ended",
+  "question spoken") shows as pending; it passes or fails when the turn closes.
+- **Limits:** grouping by time can merge two quick typed messages if the bot skips "thinking" on the
+  second, and splits a turn whose bot speaks a progress update and then works on for more than 30 s
+  (the second part starts without "thinking"). A typed turn starts at the bot's first call, not when
+  the message was typed, which the bridge never sees. Voice turns are exact.
+
+**What it records**, each event with its time from the turn's start:
+- the webhook (voice turns): the `request_id` and the transcript's length;
+- each `desk_status` (its state) and each `desk_say` (characters written, characters spoken after
+  the cleanup of §5.6, whether it carried the `request_id`, and what the bridge answered: where it
+  speaks, or why not), each with how it found its bot (§5.5: `request_id`, `device`, `bot`, the only
+  bot, or the default bot);
+- calls the bridge refused or that failed, with the bridge's answer;
+- its speech: where it played, when it started (its first audio going out, so the speech service's
+  own delay counts), how long it played, and whether it played to the end or was stopped;
+- attention starting or ending (§4.3.1).
+
+No text is kept, only lengths. The admin page shows a reply's text from the History entry it links
+to, while History still has it.
+
+**Checks.** Each passes, fails, or doesn't apply. A failure is a flag: it never blocks anything.
+
+| Check | Passes when | Standing instruction |
+|---|---|---|
+| thinking first | the bot's first call was `desk_status("thinking")` | 1: "When you start, call desk_status with state "thinking"" |
+| ended | the turn ended with `desk_say` or "idle" (fails when it left a status showing, which then expired, or a voice message got no reply) | 4 and 5 |
+| request_id | every call carried the voice turn's `request_id` (voice turns only) | 4, and the routine's "Pass the request_id in every desk call" |
+| question spoken | a `desk_say` came in the same turn as "waiting" (turns with "waiting" only; one that came before the "waiting" counts, with a note) | 3: "call desk_status with state "waiting", then ask me" |
+| no repeats | no call came more than twice in a row with the same arguments (the same state, or the same text: compared while the turn is open, never kept) | "Never call the same desk tool more than twice in a row" |
+| no errors | the bridge refused or failed none of its calls | (none: a refused call means the desk missed something) |
+
+Two things are noted rather than checked, since the bridge can't know them: whether "working" came
+(it should if the bot used tools), and a call that found its bot only as the default (§5.5), which
+may have been another bot's.
+
+**Timings:** for a voice turn, from the webhook to the first call and to the reply; for a typed turn,
+from the first call to the reply; from the reply to its speech starting; how long the speech played;
+the whole turn.
+
+**Where it shows:** History's **Turns** view (§5.8). Each turn shows its time, bot, typed or voice,
+length, its checks (all passed, or the flags in words) and its calls in order with their times.
+**Export** downloads the turns shown as JSON, with a summary (turns; how many passed and failed each
+check; the median, lowest and highest of each timing), for test notes.
+
+**Kept** in `turns.json` next to `state.json`: the turns of the last 30 days, and never more than the
+latest 500, whichever is fewer. Older ones are dropped whenever a turn is added and when the bridge
+starts. A bridge without the file starts with none, a file it can't read is set aside
+(`turns.json.unreadable`) and started afresh, and older bridges ignore it.
+
+**Privacy:** records and exports hold no text, but they name the bots and devices: they stay on the
+bridge and the owner's computer. What goes into the repository from them is counts and timings.
+
+A record (the export has the same, plus the summary):
+
+```json
+{
+  "id": 42, "bot": "Test Bot", "kind": "typed", "devices": ["Desk"],
+  "start": "2026-11-20T14:02:11.120Z", "end": "2026-11-20T14:02:52.320Z",
+  "events": [
+    { "ms": 0, "call": "desk_status", "state": "thinking", "via": "bot", "ok": true },
+    { "ms": 4100, "call": "desk_status", "state": "working", "via": "bot", "ok": true },
+    { "ms": 27300, "call": "desk_say", "chars": 212, "spoken": 188, "request_id": false, "via": "bot",
+      "ok": true, "answer": "Speaking on Desk.", "history": 1311 },
+    { "ms": 27700, "speech": "started", "place": "device" },
+    { "ms": 41200, "speech": "played", "audio_ms": 13400 }
+  ],
+  "checks": { "thinking_first": "pass", "ended": "pass", "request_id": "n/a",
+              "question_spoken": "n/a", "no_repeats": "pass", "no_errors": "pass" },
+  "notes": [],
+  "timings": { "reply_ms": 27300, "speech_wait_ms": 400, "speech_ms": 13400, "total_ms": 41200 }
+}
+```
+
 ---
 
 ## 6. Grok Bot setup (each step done by the owner, or with the owner's OK)
@@ -747,7 +918,8 @@ is also the way to hear them on headphones.
 2. **Standing instructions**, as a skill "Desk display" turned on for the bot, or in the bot's memory
    (skills live in one library shared by every bot, so a bot may save them to its memory instead; the
    first bot connected did): report `desk_status` while working, and call `desk_say` with every reply
-   it writes. They also state the reply style (concise, speakable).
+   it writes. They also state the reply style (concise, speakable). The first bot on the bridge needs
+   nothing more; each bot added after it passes its name in every desk call (§5.5).
 3. **Routine "Desk voice"** with a webhook trigger on the bot: its instructions say the text is the
    owner speaking, to treat it exactly like a typed message, to confirm before anything destructive (an
    STT error could mean a misheard command), and to answer with `desk_say` passing the `request_id`. The webhook URL and key go
@@ -793,7 +965,7 @@ measurements (context, reliability, timing) are still to be taken.
 | | Milestone | Done when | Status |
 |---|---|---|---|
 | M1 | Bridge core running locally with a **fake device** (a script that talks the device protocol), a **fake Grok Bot** (receives the webhook, answers through MCP) and a first admin page | fake device: approve, say hello via TTS, voice message via STT → webhook → reply played | done |
-| M2 | Bridge deployed on the always-on host with tunnel and Access; **first connection to Grok Bot** (MCP, skill, routine) | typed chat → status and speech reach the fake device; voice message acts like typed; timings logged; spec updated with what we learn | the connection works: the MCP server, the standing instructions (saved in the bot's memory) and the voice routine; typed and spoken turns reach the desk. The measurements in `docs/grok-bot-setup.md` are not run yet |
+| M2 | Bridge deployed on the always-on host with tunnel and Access; **first connection to Grok Bot** (MCP, skill, routine) | typed chat → status and speech reach the fake device; voice message acts like typed; timings logged; spec updated with what we learn | the connection works: the MCP server, the standing instructions (saved in the bot's memory) and the voice routine; typed and spoken turns reach the desk. The MCP call doesn't identify its bot (§5.5). Measured with M11's test script on a test bot (20 Nov 2026): reliability (every check passed on messages 1 to 9) and timing (spoken replies 8 to 11 s after the webhook). Still to test: whether a routine run sees the typed chat, ten messages in a row, and the app's voice chat |
 | M3 | Firmware: display, touch and face on the board, offline; audio in/out check | avatar animates through all states from a test menu; tap and hold work; mic level and a tone work | done |
 | M4 | Device ⇄ bridge: setup hotspot, approval, config, states, playback | the bot's replies are spoken on the real device | done |
 | M5 | Listening: hold-to-talk, voice level, STT, full voice turn | hold, speak, let go, the bot acts, the reply is spoken | done |
@@ -803,6 +975,7 @@ measurements (context, reliability, timing) are still to be taken.
 | M8 | xAI as a speech service (§5.6.1) | the device speaks with an xAI voice, a voice message is transcribed by xAI, and the tests pass against a fake xAI server | planned, not built |
 | M9 | Firmware releases and the web installer (§4.7) | "Release firmware" publishes `v<version>` with the four parts, the manifest and the notices; the installer page on GitHub Pages installs it from the browser and the device keeps its settings; **Erase device** gives a clean start | released: v0.6.0 on 13 Nov 2026 |
 | M10 | Boards and what they can do (§4.8): a board layer, and the AMOLED-1.8 as a second board | the AMOLED-1.8 shows the face, speaks and listens through a bridge, and is set up from a phone; the LCD-1.46 works as before; CI and a release build both boards; the installer page installs either from its own button | built (firmware 0.6.2): the AMOLED-1.8 (V2) works with real speech on the always-on bridge; the LCD-1.46's hardware check is still to come before the v0.6.2 release. Boards without a speaker or a microphone are described, not built |
+| M11 | Turn records and attention (§5.11, §4.3.1) | the test script in `docs/grok-bot-setup.md` runs on a second bot on the always-on bridge, its turns show the calls, checks and timings, and the results are written up; attention starts, outlasts the old 10-minute expiry and ends with the next message, on both boards, and the first bot's replies reach its desk throughout | built (firmware 0.6.3): the test script's messages 1 to 9 ran on a test bot on the always-on bridge on 20 Nov 2026 with every check passed, attention held 15 minutes and ended with the next message on the AMOLED-1.8, and the first bot's desk stayed its own (results in `docs/grok-bot-setup.md`). The LCD-1.46's hardware check is still to come before the v0.6.3 release |
 
 M1 and M2 came first so that any surprise on the Grok Bot side showed up before the firmware was far
 along. M7, M8, M9 and M10 don't depend on each other, so any can come first.
@@ -811,10 +984,15 @@ along. M7, M8, M9 and M10 don't depend on each other, so any can come first.
 
 | Risk | Plan |
 |---|---|
-| Routine runs may not see the ongoing chat, so voice answers lose context | test in M2; fallback: `recent` in the webhook body |
-| The bot may not always follow the skill (missed status or missed speech) | measure in M2; tighten the skill text; the bridge's own states cover voice turns |
-| 30–40 s per voice turn | clear "thinking" animation; timings in the history to tune the bot's instructions |
-| The MCP call may not identify the calling bot | the skill passes the bot's name; the bridge checks it |
+| Routine runs may not see the ongoing chat, so voice answers lose context | still to test (the 20 Nov 2026 run didn't show it: its typed message held the spoken question too); fallback: `recent` in the webhook body |
+| The bot may not always follow the skill (missed status or missed speech) | turn records check every turn (§5.11). On a test bot (20 Nov 2026) every check passed on the test script's messages 1 to 9; the routine's first run skipped "thinking" once (1 of 3 spoken turns), which the bridge's own "thinking" covers. Tighten the skill text if the records show misses |
+| A voice turn takes a while (another project measured 30–40 s) | measured 8–11 s from the webhook to the reply on a test bot (20 Nov 2026); clear "thinking" animation; timings in the history and the turn records to tune the bot's instructions |
+| The MCP call doesn't identify the calling bot (confirmed 19 Nov 2026: every call looks the same) | bots after the first pass their name; calls without one go to the default bot (§5.5), and turn records note it |
+| Adding a second bot used to cut off the first bot's typed replies (unnamed calls were refused) | the default bot is set when a second bot is added (§5.5) |
+| A call from a second bot (such as a test bot) that forgets its `bot:` line goes to the default bot, so its words reach the first bot's desk; nothing in a call identifies the bot, so the checks can't catch it (the turn shows up as the default bot's, noted as found by default) | each later bot's instructions name it; while testing, watch that the first bot's desk stays quiet |
+| Typed turns are grouped by time, so two quick messages can merge or a long turn split | voice turns are exact; the limits are stated with the records (§5.11), and "thinking first" keeps typed turns apart |
+| Attention that never ends, if the bot never calls again after asking | it ends with the owner's next message, or **Clear** on the device's card (§4.3.1) |
+| An OLED could wear where the "!" badge stays lit for hours | the badge moves with the hop and the drift (§4.8); dimming comes in M6 |
 | Exact avatar shapes and colours of the app | match by eye in M6 using the admin preview |
 | STT quality | provider is configurable; the speech server's STT for testing only |
 | Grok Bot app changes | only documented routes are used (webhook, custom MCP, skills) |

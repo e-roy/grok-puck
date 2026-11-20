@@ -1,8 +1,9 @@
 // What the desk does: hands what the owner says to their bot, and speaks and shows what the bot
-// sends back. The hub moves the bytes; this decides what goes where.
+// sends back. The hub moves the bytes; this decides what goes where, and records what the bot called
+// in its turns (spec §5.11).
 import { randomUUID } from 'node:crypto';
 import type { FastifyBaseLogger } from 'fastify';
-import { ERROR_TONE, MIC_RATE, NO_ANSWER_TONE, SPEAKER_RATE, type Tone, tones, wav } from './audio.ts';
+import { attentionChirp, ERROR_TONE, MIC_RATE, NO_ANSWER_TONE, SPEAKER_RATE, type Tone, tones, wav } from './audio.ts';
 import { Clip } from './clip.ts';
 import { errorText } from './errors.ts';
 import { postWebhook, type VoiceMessage } from './grokbot.ts';
@@ -11,10 +12,11 @@ import { RateLimit } from './ratelimit.ts';
 import { speakable } from './speakable.ts';
 import { makeStt, makeTts } from './speech.ts';
 import type { Bot, Device, Store } from './store.ts';
+import type { CallEvent, TurnLog, TurnRef, Via } from './turns.ts';
 
 const REPLY_TIMEOUT_MS = 180_000; // then the device shows "no answer"
 const LATE_REPLY_MS = 3_600_000; // a reply this late still finds its device
-const STATUS_EXPIRY_MS = 600_000; // a "working" the bot never ended
+const STATUS_EXPIRY_MS = 600_000; // a "thinking" or "working" the bot never ended; "waiting" stays
 const OFFLINE_QUEUE = 5;
 const RECENT_LIMIT = 6;
 const REPEAT_MS = 60_000; // the same text twice within this is spoken once
@@ -32,6 +34,13 @@ export interface Target {
 export interface Outcome {
   ok: boolean;
   message: string;
+  /** For Recent calls: the bot a tool call went to, and how it was found (spec §5.5). */
+  bot?: string;
+  via?: Via;
+}
+
+export interface DeskTiming {
+  statusExpiryMs: number;
 }
 
 interface VoiceRequest {
@@ -43,18 +52,34 @@ interface VoiceRequest {
   timedOut: boolean;
   timeout: NodeJS.Timeout;
   expiry: NodeJS.Timeout;
+  turn: TurnRef;
 }
 
 interface Targets {
   devices: Device[];
   bot: Bot | undefined;
   request: VoiceRequest | undefined;
+  via: Via;
+}
+
+/** Why a call reaches no device, with the bot it was for when that is known. */
+interface Refusal {
+  error: string;
+  bot?: Bot;
+  via?: Via;
+}
+
+/** A call from the bot (through MCP), as opposed to the admin page's tests: only these are recorded. */
+interface CallOptions {
+  fromBot?: boolean;
 }
 
 export class Desk {
   private readonly store: Store;
   private readonly hub: DeviceHub;
   private readonly log: FastifyBaseLogger;
+  private readonly turns: TurnLog;
+  private readonly statusExpiryMs: number;
   private readonly requests = new Map<string, VoiceRequest>();
   private readonly offline = new Map<string, Array<{ text: string; botId: string }>>();
   private readonly recent = new Map<string, Array<{ who: 'owner' | 'bot'; text: string }>>();
@@ -63,10 +88,14 @@ export class Desk {
   private readonly statusTimers = new Map<string, NodeJS.Timeout>();
   private readonly limits = { voice: new RateLimit(60), say: new RateLimit(120), status: new RateLimit(600) };
 
-  constructor(store: Store, hub: DeviceHub, log: FastifyBaseLogger) {
+  constructor(store: Store, hub: DeviceHub, log: FastifyBaseLogger, turns: TurnLog, timing: Partial<DeskTiming> = {}) {
     this.store = store;
     this.hub = hub;
     this.log = log;
+    this.turns = turns;
+    this.statusExpiryMs = timing.statusExpiryMs ?? STATUS_EXPIRY_MS;
+    // Attention outlasts a restart of the bridge (spec §4.3.1).
+    for (const device of store.state.devices) if (device.attention) this.botStates.set(device.id, 'waiting');
   }
 
   /** A device heard the owner: transcribe it and hand it to the device's bot. */
@@ -96,12 +125,17 @@ export class Desk {
 
   /** Starts a routine run with `text` as if the owner had said it. Also the admin page's test. */
   async sendToBot(device: Device | undefined, bot: Bot, text: string, timings: Record<string, number> = {}): Promise<Outcome> {
+    // The owner is back and talking to the bot: attention ends on every device of that bot (spec §4.3.1).
+    const back = this.devicesOf(bot).filter((d) => d.attention);
+    for (const d of back) this.setBotState(d.id, 'idle');
+    for (const d of back) if (d.id !== device?.id) this.showResting(d.id);
     if (!bot.webhookUrl) {
       return this.fail(device, bot, `${bot.name} has no webhook URL yet (it is the Grok Bot routine's webhook, set under Bots)`, text);
     }
     if (!this.limits.voice.take()) return this.fail(device, bot, 'too many voice messages this hour');
     if (device && this.hub.shown(device.id) !== 'thinking') this.hub.show(device.id, 'thinking');
-    const request = this.open(device, bot);
+    const request = this.open(device, bot, text);
+    for (const d of back) this.turns.attention(request.turn, d.name, 'ended');
     const message: VoiceMessage = {
       request_id: request.id,
       text,
@@ -117,6 +151,7 @@ export class Desk {
       if (res.status < 200 || res.status > 299) throw new Error(`it answered HTTP ${res.status}`);
     } catch (err) {
       this.close(request);
+      this.turns.webhookFailed(request.turn, errorText(err));
       return this.fail(device, bot, `the bot's webhook failed: ${errorText(err)}`, text);
     }
     if (device) this.remember(device.id, 'owner', text);
@@ -128,11 +163,15 @@ export class Desk {
    * The bot's words, spoken on the devices it targets. The same text twice within a minute is spoken
    * once, unless `allowRepeat` (the admin page's "Speak it") or it answers a new voice message.
    */
-  say(text: string, target: Target, { allowRepeat = false } = {}): Outcome {
-    if (!this.limits.say.take()) return { ok: false, message: 'Too many desk_say calls this hour; try again later.' };
+  say(text: string, target: Target, { allowRepeat = false, fromBot = false }: { allowRepeat?: boolean } & CallOptions = {}): Outcome {
+    const spoken = speakable(text);
+    const record = (found: Targets | Refusal) =>
+      fromBot ? this.record('desk_say', target, found, { text, spoken: spoken.length }) : undefined;
+    if (!this.limits.say.take()) return this.refuse(record, target, 'Too many desk_say calls this hour; try again later.');
     const found = this.resolve(target);
-    if ('error' in found) return { ok: false, message: found.error };
-    const { devices, bot, request } = found;
+    if ('error' in found) return this.refuse(record, target, found.error, found);
+    const { devices, bot, request, via } = found;
+    const call = record(found);
     const timings: Record<string, number> = {};
     // The first reply to a voice message is always spoken, even if an earlier answer had the same words.
     if (request && !request.answered) allowRepeat = true;
@@ -143,22 +182,26 @@ export class Desk {
     }
     for (const device of devices) {
       this.remember(device.id, 'bot', text);
-      // A reply ends "thinking" and "working"; "waiting" stays, since the reply may be the question.
-      if (this.botStates.get(device.id) !== 'waiting') this.setBotState(device.id, 'idle');
+      // A reply ends "thinking" and "working". "Waiting" stays, since the reply may be the question,
+      // unless this reply starts the bot's next turn: then the owner has answered (spec §4.3.1).
+      if (this.botStates.get(device.id) !== 'waiting' || call?.started) this.setBotState(device.id, 'idle', call?.turn);
       if (device.muted) this.showResting(device.id);
     }
-    const spoken = speakable(text);
+    const done = (outcome: Outcome, history?: number): Outcome => {
+      if (call) this.answer(call.event, outcome, history);
+      return { ...outcome, bot: bot?.name, via };
+    };
     if (!spoken) {
       for (const device of devices) this.showResting(device.id);
-      this.store.addHistory({ kind: 'say', ok: true, botId: bot?.id, text, timings, detail: 'nothing to speak (only code or links)' });
-      return { ok: true, message: 'Nothing was spoken: the text was only code or links.' };
+      const entry = this.store.addHistory({ kind: 'say', ok: true, botId: bot?.id, text, timings, detail: 'nothing to speak (only code or links)' });
+      return done({ ok: true, message: 'Nothing was spoken: the text was only code or links.' }, entry.id);
     }
     // Without a voice nothing can be spoken: say so now rather than fail later, or keep it for later.
     const noVoice = this.voiceProblem(bot, devices);
     if (noVoice) {
       let outcome: Outcome = { ok: false, message: noVoice };
       for (const device of devices) outcome = this.fail(device, bot, noVoice, text);
-      return outcome;
+      return done(outcome);
     }
     const now = Date.now();
     const repeats = devices.filter((d) => {
@@ -169,9 +212,10 @@ export class Desk {
       devices.filter((d) => !repeats.includes(d)),
       bot,
       spoken,
+      call?.turn,
     );
     const message = [report, repeats.length ? `Already spoken on ${names(repeats)} a moment ago.` : ''].filter(Boolean).join(' ');
-    this.store.addHistory({
+    const entry = this.store.addHistory({
       kind: 'say',
       ok: true,
       botId: bot?.id,
@@ -180,19 +224,23 @@ export class Desk {
       timings,
       detail: message,
     });
-    return { ok: true, message };
+    return done({ ok: true, message }, entry.id);
   }
 
   /** What the bot is doing, shown on its devices. */
-  status(state: BotState, target: Target): Outcome {
-    if (!this.limits.status.take()) return { ok: false, message: 'Too many desk_status calls this hour.' };
+  status(state: BotState, target: Target, { fromBot = false }: CallOptions = {}): Outcome {
+    const record = (found: Targets | Refusal) => (fromBot ? this.record('desk_status', target, found, { state }) : undefined);
+    if (!this.limits.status.take()) return this.refuse(record, target, 'Too many desk_status calls this hour.');
     const found = this.resolve(target);
-    if ('error' in found) return { ok: false, message: found.error };
+    if ('error' in found) return this.refuse(record, target, found.error, found);
+    const call = record(found);
     for (const device of found.devices) {
-      this.setBotState(device.id, state);
+      this.setBotState(device.id, state, call?.turn);
       this.showResting(device.id);
     }
-    return { ok: true, message: `Showing "${state}" on ${names(found.devices)}.` };
+    const outcome = { ok: true, message: `Showing "${state}" on ${names(found.devices)}.` };
+    if (call) this.answer(call.event, outcome);
+    return { ...outcome, bot: found.bot?.name, via: found.via };
   }
 
   devicesSummary(): Outcome {
@@ -204,6 +252,15 @@ export class Desk {
       return `- ${d.name} (id ${d.id}): ${online}; bot: ${bot?.name ?? 'none'}${d.muted ? '; muted' : ''}`;
     });
     return { ok: true, message: lines.join('\n') };
+  }
+
+  /** The admin page's Clear: this device stops showing that its bot waits for the owner. */
+  clearAttention(deviceId: string): boolean {
+    const device = this.store.device(deviceId);
+    if (!device?.attention) return false;
+    this.setBotState(deviceId, 'idle');
+    this.showResting(deviceId);
+    return true;
   }
 
   /** A device (re)connected: show the right state and speak what it missed. */
@@ -236,12 +293,16 @@ export class Desk {
    * Speaks on each device where its Speak on setting says (the device, its Listen page or both), and
    * keeps it for a device with nowhere to speak now. Says where, for the bot and the history.
    */
-  private speak(devices: Device[], bot: Bot | undefined, spoken: string): string {
+  private speak(devices: Device[], bot: Bot | undefined, spoken: string, turn?: TurnRef): string {
     const muted = devices.filter((d) => d.muted);
     const routed = devices.filter((d) => !d.muted).map((device) => ({ device, place: this.hub.route(device.id) }));
     const away = routed.filter((r) => r.place === null).map((r) => r.device);
     const playing = routed.filter((r): r is { device: Device; place: Place } => r.place !== null);
     for (const device of away) this.keep(device, spoken, bot);
+    if (turn) {
+      for (const device of muted) this.turns.speech(turn, device.name, 'muted');
+      for (const device of away) this.turns.speech(turn, device.name, 'kept');
+    }
     if (playing.length) {
       const clip = this.synthesize(spoken, bot);
       const at = Date.now();
@@ -254,7 +315,9 @@ export class Desk {
       });
       for (const { device, place } of playing) {
         this.lastSpoken.set(device.id, { text: spoken, at });
-        void this.hub.play(device.id, clip, 'speech', place).then((result) => {
+        const started = turn ? (where: Place) => this.turns.speech(turn, device.name, 'started', where) : undefined;
+        void this.hub.play(device.id, clip, 'speech', place, { started }).then((result) => {
+          if (turn) this.turns.speech(turn, device.name, result === 'offline' ? 'kept' : result);
           // It went offline and its page closed while the clip waited: kept for later, as if it had been offline.
           if (result === 'offline') this.keep(device, spoken, bot);
         });
@@ -304,45 +367,106 @@ export class Desk {
     return Clip.from(makeTts(tts).synthesize(spoken, voice), SPEAKER_RATE);
   }
 
-  private resolve(target: Target): Targets | { error: string } {
+  /**
+   * Which devices a call reaches, and how it found its bot (spec §5.5): a voice turn's request_id, a
+   * named device, the bot's name, the only bot, or with several bots the default bot.
+   */
+  private resolve(target: Target): Targets | Refusal {
     const approved = this.store.state.devices.filter((d) => d.status === 'approved');
     const request = target.requestId ? this.requests.get(target.requestId) : undefined;
     if (request) {
       const bot = this.store.bot(request.botId);
       const asker = this.store.device(request.deviceId);
-      if (asker) return { devices: [asker], bot, request };
-      return { devices: approved.filter((d) => d.botId === request.botId), bot, request };
+      if (asker) return { devices: [asker], bot, request, via: 'request' };
+      return { devices: approved.filter((d) => d.botId === request.botId), bot, request, via: 'request' };
     }
     if (target.device) {
       const wanted = target.device.trim().toLowerCase();
       const device = approved.find((d) => d.id.toLowerCase() === wanted || d.name.trim().toLowerCase() === wanted);
-      if (!device) return { error: `No desk device is called "${target.device}". desk_devices lists them.` };
+      const named = target.bot ? this.store.botByName(target.bot) : undefined;
+      if (!device) return { error: `No desk device is called "${target.device}". desk_devices lists them.`, bot: named, via: named && 'bot' };
       const bot = this.store.bot(device.botId);
-      if (target.bot && bot && this.store.botByName(target.bot) !== bot) {
-        return { error: `The device "${device.name}" belongs to ${bot.name}, not ${target.bot}.` };
+      if (target.bot && bot && named !== bot) {
+        return { error: `The device "${device.name}" belongs to ${bot.name}, not ${target.bot}.`, bot: named, via: named && 'bot' };
       }
-      return { devices: [device], bot, request: undefined };
+      return { devices: [device], bot, request: undefined, via: 'device' };
     }
     const bots = this.store.state.bots;
     let bot: Bot | undefined;
+    let via: Via;
     if (target.bot) {
       bot = this.store.botByName(target.bot);
       if (!bot) return { error: `No bot called "${target.bot}" is set up on the desk bridge.` };
+      via = 'bot';
     } else if (bots.length === 1) {
       bot = bots[0];
+      via = 'only';
     } else if (bots.length === 0) {
       return { error: 'No bots are set up on the desk bridge yet.' };
     } else {
-      return { error: 'Several bots use this desk bridge: pass your bot name in "bot".' };
+      // Several bots: the default one, so that the first bot's instructions need no change (spec §5.5).
+      bot = this.store.bot(this.store.state.defaultBotId);
+      if (!bot) return { error: 'Several bots use this desk bridge: pass your bot name in "bot".' };
+      via = 'default';
     }
     const devices = approved.filter((d) => d.botId === bot.id);
-    if (!devices.length) return { error: `No desk device is attached to ${bot.name}.` };
-    return { devices, bot, request: undefined };
+    if (!devices.length) return { error: `No desk device is attached to ${bot.name}.`, bot, via };
+    return { devices, bot, request: undefined, via };
   }
 
-  private open(device: Device | undefined, bot: Bot): VoiceRequest {
+  /** Records a call from the bot in its turn (spec §5.11). */
+  private record(
+    tool: 'desk_status' | 'desk_say',
+    target: Target,
+    found: Targets | Refusal,
+    args: { state?: string; text?: string; spoken?: number },
+  ): { turn: TurnRef; event: CallEvent; started: boolean } {
+    const bot = found.bot;
+    return this.turns.call({
+      tool,
+      botId: bot?.id ?? '',
+      bot: bot?.name ?? target.bot?.trim() ?? '',
+      via: found.via,
+      requestId: target.requestId,
+      devices: 'devices' in found ? found.devices.map((d) => d.name) : [],
+      ...args,
+    });
+  }
+
+  /** A call that reached no device: recorded as refused, with the bridge's answer. */
+  private refuse(
+    record: (found: Targets | Refusal) => { event: CallEvent } | undefined,
+    target: Target,
+    message: string,
+    found: Refusal = this.whose(target),
+  ): Outcome {
+    const call = record(found);
+    const outcome = { ok: false, message };
+    if (call) this.answer(call.event, outcome);
+    return { ...outcome, bot: found.bot?.name, via: found.via };
+  }
+
+  /** For a call refused before it was resolved (a rate limit): the bot it was for, if that can be told. */
+  private whose(target: Target): Refusal {
+    const found = this.resolve(target);
+    return 'error' in found ? found : { error: '', bot: found.bot, via: found.via };
+  }
+
+  private answer(event: CallEvent, outcome: Outcome, history?: number): void {
+    event.ok = outcome.ok;
+    event.answer = outcome.message;
+    if (history !== undefined) event.history = history;
+    this.turns.changed();
+  }
+
+  private devicesOf(bot: Bot): Device[] {
+    return this.store.state.devices.filter((d) => d.status === 'approved' && d.botId === bot.id);
+  }
+
+  private open(device: Device | undefined, bot: Bot, text: string): VoiceRequest {
+    const id = randomUUID();
     const request: VoiceRequest = {
-      id: randomUUID(),
+      id,
       deviceId: device?.id ?? '',
       botId: bot.id,
       at: Date.now(),
@@ -350,6 +474,14 @@ export class Desk {
       timedOut: false,
       timeout: setTimeout(() => this.noAnswer(request), REPLY_TIMEOUT_MS),
       expiry: setTimeout(() => this.close(request), LATE_REPLY_MS),
+      // Opened before the webhook is posted: the bot's first call can come before its answer does.
+      turn: this.turns.voice({
+        botId: bot.id,
+        bot: bot.name,
+        requestId: id,
+        devices: device ? [device.name] : this.devicesOf(bot).map((d) => d.name),
+        chars: text.length,
+      }),
     };
     this.requests.set(request.id, request);
     return request;
@@ -358,6 +490,7 @@ export class Desk {
   private noAnswer(request: VoiceRequest): void {
     if (request.answered) return;
     request.timedOut = true;
+    this.turns.noAnswer(request.turn);
     this.store.addHistory({
       kind: 'error',
       ok: false,
@@ -385,18 +518,37 @@ export class Desk {
     return false;
   }
 
-  /** What the bot reported, kept until it reports something else, replies, or ten minutes pass. */
-  private setBotState(deviceId: string, state: BotState): void {
+  /**
+   * What the bot reported, kept until it reports something else or replies. "Thinking" and "working"
+   * expire after ten minutes. "Waiting" is attention (spec §4.3.1): it doesn't expire, it is kept with
+   * the device (so a restart keeps it), and a chirp plays once when it starts.
+   */
+  private setBotState(deviceId: string, state: BotState, turn?: TurnRef): void {
     clearTimeout(this.statusTimers.get(deviceId));
     this.statusTimers.delete(deviceId);
     this.botStates.set(deviceId, state);
+    const device = this.store.device(deviceId);
+    if (state === 'waiting') {
+      if (device && !device.attention) {
+        device.attention = new Date().toISOString();
+        this.store.changed();
+        if (turn) this.turns.attention(turn, device.name, 'started');
+        void this.hub.play(deviceId, Clip.of(attentionChirp(), SPEAKER_RATE), 'tone'); // not when muted, nor with nowhere to play
+      }
+      return;
+    }
+    if (device?.attention) {
+      device.attention = undefined;
+      this.store.changed();
+      if (turn) this.turns.attention(turn, device.name, 'ended');
+    }
     if (state === 'idle') return;
     this.statusTimers.set(
       deviceId,
       setTimeout(() => {
         this.botStates.set(deviceId, 'idle');
         this.showResting(deviceId);
-      }, STATUS_EXPIRY_MS),
+      }, this.statusExpiryMs),
     );
   }
 

@@ -191,6 +191,48 @@
     stroke-width: 4px;
   }
 }
+/* Attention, in rounds of 2.2 s as the device does (spec §4.3.1): two quick hops, then a turn to one
+   side and the other (the body leans, the eyes slide further), then a short rest. Stilled, the "!"
+   still says it. */
+@keyframes avatar-hop {
+  0%,
+  11.8%,
+  13.6%,
+  23.6%,
+  25.5%,
+  48.2%,
+  70.9%,
+  100% {
+    transform: translate(0, 0);
+  }
+  5.9% {
+    transform: translate(0, -5px);
+  }
+  18.6% {
+    transform: translate(0, -3.5px);
+  }
+  36.8% {
+    transform: translate(3px, 0);
+  }
+  59.5% {
+    transform: translate(-3px, 0);
+  }
+}
+@keyframes avatar-turn {
+  0%,
+  25.5%,
+  48.2%,
+  70.9%,
+  100% {
+    transform: translateX(0) scaleX(1);
+  }
+  36.8% {
+    transform: translateX(3px) scaleX(0.95);
+  }
+  59.5% {
+    transform: translateX(-3px) scaleX(0.95);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .avatar-motion,
   .avatar-motion * {

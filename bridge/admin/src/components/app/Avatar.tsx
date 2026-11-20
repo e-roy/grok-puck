@@ -57,7 +57,8 @@ function Body({ shape, color }: AvatarSettings) {
   }
 }
 
-export type AvatarState = 'idle' | 'listening' | 'thinking' | 'working' | 'waiting' | 'speaking' | 'error' | 'offline';
+/** "attention": waiting, as firmware 0.6.3 shows it (the "!" and the hop); "waiting": the quiet look before it. */
+export type AvatarState = 'idle' | 'listening' | 'thinking' | 'working' | 'waiting' | 'attention' | 'speaking' | 'error' | 'offline';
 
 const LABELS: Record<AvatarState, string> = {
   idle: 'idle',
@@ -65,14 +66,27 @@ const LABELS: Record<AvatarState, string> = {
   thinking: 'thinking',
   working: 'working',
   waiting: 'waiting for you',
+  attention: 'waiting for you',
   speaking: 'speaking',
   error: 'error',
   offline: 'offline',
 };
 
+/** The attention badge: an amber disc with a dark "!", at the avatar's upper right (spec §4.3.1). */
+function AttentionBadge() {
+  return (
+    <g>
+      <circle cx="80" cy="22" r="13" fill="#fbbf24" stroke="var(--background)" strokeWidth="2.5" />
+      <rect x="78.2" y="13.3" width="3.6" height="11" rx="1.8" fill="#1f2937" />
+      <circle cx="80" cy="29" r="2" fill="#1f2937" />
+    </g>
+  );
+}
+
 export function Avatar({ avatar, size = 96, state }: { avatar: AvatarSettings; size?: number; state?: AvatarState }) {
   const eyes = luminance(avatar.color) > 0.6 ? '#1f2937' : '#ffffff';
   const offline = state === 'offline';
+  const attention = state === 'attention';
   const wide = state === 'listening'; // as on the device: eyes 12% larger while it listens
   const look = state === 'thinking' ? -5 : state === 'speaking' ? -2 : 0; // thinking looks up
   const orbit = state === 'thinking' || state === 'working';
@@ -101,28 +115,34 @@ export function Avatar({ avatar, size = 96, state }: { avatar: AvatarSettings; s
         <circle cx="50" cy="52" r="47" fill="none" stroke={avatar.color} strokeWidth="3.5" style={motion('avatar-listen', 1.4)} />
       )}
       {state === 'error' && <circle cx="50" cy="52" r="47" fill="none" stroke="var(--destructive)" strokeWidth="3" />}
-      <g style={state === 'idle' ? motion('avatar-breathe', 4) : undefined} opacity={offline ? 0.45 : 1}>
-        <Body {...avatar} />
-        {offline ? (
-          <>
-            <rect x="34" y="50" width="12" height="3" rx="1.5" fill={eyes} />
-            <rect x="54" y="50" width="12" height="3" rx="1.5" fill={eyes} />
-          </>
-        ) : (
-          <g transform={`translate(0 ${look})`}>
-            {wide ? (
-              <>
-                <rect x="35.5" y="37" width="9" height="20" rx="4.5" fill={eyes} />
-                <rect x="55.5" y="37" width="9" height="20" rx="4.5" fill={eyes} />
-              </>
-            ) : (
-              <>
-                <rect x="36" y="38" width="8" height="18" rx="4" fill={eyes} />
-                <rect x="56" y="38" width="8" height="18" rx="4" fill={eyes} />
-              </>
-            )}
-          </g>
-        )}
+      {/* Attention: the body, its eyes and the badge hop together, then the eyes turn to each side; no ring (spec §4.3.1). */}
+      <g style={attention ? motion('avatar-hop', 2.2) : undefined}>
+        <g style={state === 'idle' ? motion('avatar-breathe', 4) : undefined} opacity={offline ? 0.45 : 1}>
+          <Body {...avatar} />
+          {offline ? (
+            <>
+              <rect x="34" y="50" width="12" height="3" rx="1.5" fill={eyes} />
+              <rect x="54" y="50" width="12" height="3" rx="1.5" fill={eyes} />
+            </>
+          ) : (
+            <g transform={`translate(0 ${look})`}>
+              <g style={attention ? motion('avatar-turn', 2.2) : undefined}>
+                {wide ? (
+                  <>
+                    <rect x="35.5" y="37" width="9" height="20" rx="4.5" fill={eyes} />
+                    <rect x="55.5" y="37" width="9" height="20" rx="4.5" fill={eyes} />
+                  </>
+                ) : (
+                  <>
+                    <rect x="36" y="38" width="8" height="18" rx="4" fill={eyes} />
+                    <rect x="56" y="38" width="8" height="18" rx="4" fill={eyes} />
+                  </>
+                )}
+              </g>
+            </g>
+          )}
+        </g>
+        {attention && <AttentionBadge />}
       </g>
       {orbit && (
         <g style={motion('avatar-orbit', state === 'working' ? 1.2 : 2.4, 'linear')}>
@@ -143,10 +163,14 @@ export function Avatar({ avatar, size = 96, state }: { avatar: AvatarSettings; s
 
 const SHOWN = new Set<string>(['listening', 'thinking', 'working', 'waiting', 'speaking', 'error']);
 
-/** The device state the bridge reports, as an avatar state; `speaking`: its speech plays somewhere now. */
-export function avatarState(showing: string | null, online: boolean, speaking = false): AvatarState {
+/**
+ * The device state the bridge reports, as an avatar state; `speaking`: its speech plays somewhere now;
+ * `attention`: the device shows "waiting" as attention (its firmware lists the feature; a Listen page always does).
+ */
+export function avatarState(showing: string | null, online: boolean, speaking = false, attention = false): AvatarState {
   if (!online) return 'offline';
   if (showing === 'listening') return 'listening'; // held: the device shows its listening face, whatever plays
   if (speaking) return 'speaking';
+  if (showing === 'waiting' && attention) return 'attention';
   return showing && SHOWN.has(showing) ? (showing as AvatarState) : 'idle';
 }

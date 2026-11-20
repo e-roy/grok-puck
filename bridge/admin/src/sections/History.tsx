@@ -1,8 +1,9 @@
-// History: what the desk heard and said, newest first, with filters, and for each turn a small bar of
-// where the time went (speech, STT, webhook, the bot's reply) so slow steps stand out.
+// History, in two views. Entries: what the desk heard and said, newest first, with filters, and for
+// each a small bar of where the time went (speech, STT, webhook, the bot's reply) so slow steps stand
+// out. Turns: what the bot called for each message, checked against its instructions (Turns.tsx).
 import { CircleAlertIcon, HistoryIcon, type LucideIcon, MicIcon, SettingsIcon, TabletSmartphoneIcon, Volume2Icon } from 'lucide-react';
 import { useState } from 'react';
-import type { HistoryEntry } from '@/api.ts';
+import type { HistoryEntry, Overview } from '@/api.ts';
 import { SectionHeader, type SectionProps } from '@/components/app/Section.tsx';
 import { Card, CardContent } from '@/components/ui/card';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
@@ -10,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { seconds, when } from '@/lib/format.ts';
 import { cn } from '@/lib/utils';
+import { Turns } from './Turns.tsx';
 
 const FILTERS = [
   { value: 'all', label: 'All' },
@@ -34,7 +36,38 @@ const STEPS = [
   { key: 'reply', label: 'bot reply', className: 'bg-chart-4' },
 ] as const;
 
-export function History({ data }: SectionProps) {
+const VIEWS = [
+  { value: 'entries', label: 'Entries' },
+  { value: 'turns', label: 'Turns' },
+] as const;
+type View = (typeof VIEWS)[number]['value'];
+
+export function History({ data, active }: SectionProps) {
+  const [view, setView] = useState<View>('entries');
+  return (
+    <>
+      <SectionHeader
+        title="History"
+        action={
+          <ToggleGroup aria-label="View" value={[view]} onValueChange={(v) => v[0] && setView(v[0] as View)} variant="outline" size="sm" spacing={0}>
+            {VIEWS.map((v) => (
+              <ToggleGroupItem key={v.value} value={v.value}>
+                {v.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        }
+      >
+        {view === 'entries'
+          ? 'What the desk heard and said, newest first, with how long each step took.'
+          : 'What the bot called for each message, in order, checked against its standing instructions. A flag means it missed something they ask.'}
+      </SectionHeader>
+      {view === 'entries' ? <Entries data={data} /> : <Turns data={data} active={Boolean(active)} />}
+    </>
+  );
+}
+
+function Entries({ data }: { data: Overview }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [device, setDevice] = useState('');
   const deviceName = (id?: string) => data.devices.find((d) => d.id === id)?.name ?? id ?? '';
@@ -51,7 +84,6 @@ export function History({ data }: SectionProps) {
 
   return (
     <>
-      <SectionHeader title="History">What the desk heard and said, newest first, with how long each step took.</SectionHeader>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <ToggleGroup aria-label="Show" value={[filter]} onValueChange={(v) => v[0] && setFilter(v[0] as Filter)} variant="outline" size="sm" spacing={0}>
           {FILTERS.map((f) => (

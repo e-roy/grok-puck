@@ -62,7 +62,7 @@ static void refresh_face(void) {
     if (!on_wifi || link_status == LINK_CONNECTING) {
         want = FACE_OFFLINE;
     } else if (link_status == LINK_PENDING) {
-        want = FACE_WAITING;  // waiting for approval in the admin page
+        want = FACE_WAITING;  // waiting for approval in the admin page: the quiet look, without the "!"
     } else if (link_status == LINK_REJECTED) {
         want = FACE_ERROR;
     } else if (listening) {
@@ -134,8 +134,12 @@ static void on_show(const char *name) {
     static const struct {
         const char *name;
         face_state_t state;
-    } states[] = {{"idle", FACE_IDLE},       {"thinking", FACE_THINKING}, {"working", FACE_WORKING},
-                  {"waiting", FACE_WAITING}, {"error", FACE_ERROR},       {"speaking", FACE_SPEAKING}};
+    } states[] = {{"idle", FACE_IDLE},
+                  {"thinking", FACE_THINKING},
+                  {"working", FACE_WORKING},
+                  {"waiting", FACE_ATTENTION},  // the bot waits for the owner (spec §4.3.1)
+                  {"error", FACE_ERROR},
+                  {"speaking", FACE_SPEAKING}};
     for (size_t i = 0; i < sizeof(states) / sizeof(states[0]); i++) {
         if (strcmp(name, states[i].name) != 0) continue;
         lvgl_port_lock(0);

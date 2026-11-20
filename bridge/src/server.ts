@@ -5,10 +5,11 @@ import Fastify from 'fastify';
 import type { JWTVerifyGetKey } from 'jose';
 import { registerAdmin } from './admin.ts';
 import type { Config } from './config.ts';
-import { Desk } from './desk.ts';
+import { Desk, type DeskTiming } from './desk.ts';
 import { DeviceHub } from './hub.ts';
 import { handleMcp, McpActivity } from './mcp.ts';
 import { Store } from './store.ts';
+import { TurnLog, type TurnTiming } from './turns.ts';
 
 export interface Bridge {
   publicPort: number;
@@ -20,11 +21,14 @@ export interface Bridge {
 export interface BridgeOptions {
   /** Replaces Cloudflare Access's published signing keys (tests only). */
   accessKeys?: JWTVerifyGetKey;
+  /** Shorter status expiry and turn gaps (tests only). */
+  timing?: Partial<DeskTiming & TurnTiming>;
 }
 
 export async function startBridge(config: Config, options: BridgeOptions = {}): Promise<Bridge> {
   const app = Fastify({ logger: { level: config.logLevel }, bodyLimit: 1_048_576, forceCloseConnections: true });
   const store = new Store(config.dataDir);
+  const turns = new TurnLog(config.dataDir, options.timing);
   // The hub reports to the desk, and the desk drives the hub.
   let desk!: Desk;
   const hub = new DeviceHub(store, app.log, {
@@ -33,7 +37,7 @@ export async function startBridge(config: Config, options: BridgeOptions = {}): 
     quiet: (device) => desk.onQuiet(device),
     pageReady: (device) => desk.onPageReady(device),
   });
-  desk = new Desk(store, hub, app.log);
+  desk = new Desk(store, hub, app.log, turns, options.timing);
   const activity = new McpActivity();
 
   await app.register(websocket, { options: { maxPayload: 256 * 1024 } });
@@ -44,7 +48,7 @@ export async function startBridge(config: Config, options: BridgeOptions = {}): 
   const publicPort = (app.server.address() as AddressInfo).port;
 
   const admin = Fastify({ loggerInstance: app.log, forceCloseConnections: true });
-  await registerAdmin(admin, { config, store, hub, desk, activity, publicPort, accessKeys: options.accessKeys });
+  await registerAdmin(admin, { config, store, hub, desk, turns, activity, publicPort, accessKeys: options.accessKeys });
   await admin.listen({ host: config.adminHost, port: config.adminPort });
   const adminPort = (admin.server.address() as AddressInfo).port;
 
@@ -58,6 +62,7 @@ export async function startBridge(config: Config, options: BridgeOptions = {}): 
       await admin.close();
       await app.close();
       store.flush();
+      turns.close();
     },
   };
 }
