@@ -182,12 +182,13 @@ Messages 1 to 9 were sent; 10 and 11 were skipped.
 - **Before the script,** while setting it up: one reply was refused because the bot had no voice
   yet, and the routine's first run (the admin page's **Send a test message**) replied without
   "thinking" first: 1 of its 3 spoken turns.
-- **Attention** (message 3): "waiting" 4.6 s into the turn, the question 8 s later; it stayed
-  15 minutes, past the old 10-minute expiry, and the bot's "thinking" for the answer ended it at
-  once.
+- **Attention** (message 3): "waiting" 4.6 s into the turn, the question 8 s later; the chirp
+  played on the device, it stayed 15 minutes, past the old 10-minute expiry, and the bot's
+  "thinking" for the answer ended it at once.
 - **No reply** (message 5): "thinking", then "idle", and nothing spoken.
 - **Code and links** (message 6): 92 of 179 characters spoken.
-- **The first bot's desk** stayed quiet throughout: no call from the test bot lost its name.
+- **The first bot's desk** stayed quiet throughout (no call from the test bot lost its name), and
+  the first bot's own typed replies still reached it, before, during and after the test.
 - **Timing:** typed turns took 2.8 to 20.7 s from the first call to the reply (median about 5 s;
   the long one used the web). Spoken turns took 8.1 to 11.1 s from the webhook to the reply
   (median 10.8 s), the first call 8 to 11 s after the webhook.
