@@ -157,6 +157,11 @@ test('a second bot that names itself reaches only its own desk', async () => {
   assert.ok(turn.events.filter((e) => 'call' in e).every((e) => 'call' in e && e.via === 'bot'));
   assert.equal(turn.checks.thinking_first, 'pass');
   assert.equal(turn.checks.no_errors, 'pass');
+  // Speech counts as started when its first audio goes out (the mock voice streams in pieces), after the reply.
+  const say = turn.events.find((e) => 'call' in e && e.call === 'desk_say');
+  const started = turn.events.find((e) => 'speech' in e && e.speech === 'started');
+  assert.ok(say && started && started.ms >= say.ms, JSON.stringify(turn.events));
+  assert.equal(turn.timings.speech_wait_ms, started.ms - say.ms);
 });
 
 test("a voice turn on the second bot's desk goes by its request_id", async () => {

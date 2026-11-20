@@ -37,7 +37,7 @@ export type PlayResult = 'played' | 'stopped' | 'offline' | 'muted' | 'failed';
 /** Where a clip plays: on the device, on its Listen page, or on both. */
 export type Place = 'device' | 'page' | 'both';
 
-/** Told when a clip's turn comes and it starts playing, and where (for the turn records). */
+/** Told when a clip's first audio goes out, and where it plays (for the turn records). */
 export interface PlayHooks {
   started?: (place: Place) => void;
 }
@@ -518,9 +518,15 @@ export class DeviceHub {
     speaker.turn = turn;
     speaker.onPage = page !== undefined;
     this.sendShown(id); // pages show "speaking"; so does the device, while a page plays
-    hooks.started?.(place);
+    // Speech starts when its first audio goes out (the speech service may take a moment), wherever first.
+    let heard = false;
+    const firstAudio = () => {
+      if (heard) return;
+      heard = true;
+      hooks.started?.(place);
+    };
     try {
-      const streams = await Promise.allSettled(turn.outputs.map((o) => this.stream(o, turn.id, clip, kind)));
+      const streams = await Promise.allSettled(turn.outputs.map((o) => this.stream(o, turn.id, clip, kind, firstAudio)));
       const failed = streams.find((s) => s.status === 'rejected');
       if (failed) throw failed.reason;
     } finally {
@@ -530,8 +536,8 @@ export class DeviceHub {
     return turn.outputs.some((o) => o.finished) ? 'played' : 'stopped';
   }
 
-  /** Sends the clip to one place, paced, then waits until that place has played what it holds. */
-  private async stream(out: Output, id: string, clip: Clip, kind: 'speech' | 'tone'): Promise<void> {
+  /** Sends the clip to one place, paced, then waits until that place has played what it holds. `onAudio`: its first audio went out. */
+  private async stream(out: Output, id: string, clip: Clip, kind: 'speech' | 'tone', onAudio: () => void): Promise<void> {
     let resolveDone!: () => void;
     const answered = new Promise<void>((resolve) => {
       resolveDone = resolve;
@@ -548,6 +554,7 @@ export class DeviceHub {
         carry = carry.length ? Buffer.concat([carry, chunk]) : chunk;
         while (carry.length >= FRAME_BYTES && (await this.pace(socket, started, sent / bytesPerMs, abort))) {
           socket.send(carry.subarray(0, FRAME_BYTES));
+          onAudio();
           sent += FRAME_BYTES;
           carry = carry.subarray(FRAME_BYTES);
         }
@@ -556,6 +563,7 @@ export class DeviceHub {
       const rest = carry.length & ~1;
       if (!abort.signal.aborted && rest > 0 && socket.readyState === socket.OPEN) {
         socket.send(carry.subarray(0, rest));
+        onAudio();
         sent += rest;
       }
     } finally {
