@@ -6,10 +6,10 @@ what works.** Agreed on 12 Nov 2026 and not built yet: **xAI as a speech service
 0.6.1), with "listening" and **Stop listening** added on 14 Nov 2026. **Firmware releases and the web
 installer** (§4.7, milestone M9) are built, and v0.6.0 was released on 13 Nov 2026. Agreed and built
 on 15 Nov 2026: **boards and what they can do** (§4.8, milestone M10), with a second board, the
-Waveshare ESP32-S3-Touch-AMOLED-1.8 (firmware 0.6.2), now supported. Agreed on 19 Nov 2026 and being
-built: **turn records**, which show what the bot called and check it against its standing
-instructions (§5.11, milestone M11), and **attention**: the device shows clearly that the bot waits
-for you, until your next message (§4.3.1, firmware 0.6.3). Items marked
+Waveshare ESP32-S3-Touch-AMOLED-1.8 (firmware 0.6.2), now supported. Agreed on 19 Nov 2026 and built,
+tried on a test bot on 20 Nov 2026: **turn records**, which show what the bot called and check it
+against its standing instructions (§5.11, milestone M11), and **attention**: the device shows
+clearly that the bot waits for you, until your next message (§4.3.1, firmware 0.6.3). Items marked
 *(proposal)* are suggestions you can change; items marked *(to test)* depend on how Grok Bot actually
 behaves, and get checked at milestone M2.
 
@@ -92,8 +92,10 @@ configuration.
 3. The routine run acts on it like a typed message, then replies through `desk_say(text, request_id)`,
    and the flow continues as in A.3.
 
-**Timing to expect.** One open-source project measured **30 to 40 s** from webhook to the bot's reply
-(two samples, transcription under 1 s). The device must look clearly "busy" for that long.
+**Timing to expect.** On a test bot (20 Nov 2026, three spoken messages) the reply came **8 to 11 s**
+after the webhook, its first desk call 8 to 11 s in; one open-source project had measured 30 to 40 s
+(two samples). Typed messages took about 3 to 20 s from the bot's first call to its reply, the long
+ones using tools. The device must look clearly "busy" for that long.
 
 ---
 
@@ -847,8 +849,8 @@ order with their times, checked against what the instructions ask (`docs/grok-bo
   speaks, or why not), each with how it found its bot (§5.5: `request_id`, `device`, `bot`, the only
   bot, or the default bot);
 - calls the bridge refused or that failed, with the bridge's answer;
-- its speech: where it played, when it started, how long it played, and whether it played to the end
-  or was stopped;
+- its speech: where it played, when it started (its first audio going out, so the speech service's
+  own delay counts), how long it played, and whether it played to the end or was stopped;
 - attention starting or ending (§4.3.1).
 
 No text is kept, only lengths. The admin page shows a reply's text from the History entry it links
@@ -963,7 +965,7 @@ measurements (context, reliability, timing) are still to be taken.
 | | Milestone | Done when | Status |
 |---|---|---|---|
 | M1 | Bridge core running locally with a **fake device** (a script that talks the device protocol), a **fake Grok Bot** (receives the webhook, answers through MCP) and a first admin page | fake device: approve, say hello via TTS, voice message via STT → webhook → reply played | done |
-| M2 | Bridge deployed on the always-on host with tunnel and Access; **first connection to Grok Bot** (MCP, skill, routine) | typed chat → status and speech reach the fake device; voice message acts like typed; timings logged; spec updated with what we learn | the connection works: the MCP server, the standing instructions (saved in the bot's memory) and the voice routine; typed and spoken turns reach the desk. The MCP call doesn't identify its bot (§5.5). The other measurements in `docs/grok-bot-setup.md` run with M11's test script, on a test bot |
+| M2 | Bridge deployed on the always-on host with tunnel and Access; **first connection to Grok Bot** (MCP, skill, routine) | typed chat → status and speech reach the fake device; voice message acts like typed; timings logged; spec updated with what we learn | the connection works: the MCP server, the standing instructions (saved in the bot's memory) and the voice routine; typed and spoken turns reach the desk. The MCP call doesn't identify its bot (§5.5). Measured with M11's test script on a test bot (20 Nov 2026): reliability (every check passed on messages 1 to 9) and timing (spoken replies 8 to 11 s after the webhook). Still to test: whether a routine run sees the typed chat, ten messages in a row, and the app's voice chat |
 | M3 | Firmware: display, touch and face on the board, offline; audio in/out check | avatar animates through all states from a test menu; tap and hold work; mic level and a tone work | done |
 | M4 | Device ⇄ bridge: setup hotspot, approval, config, states, playback | the bot's replies are spoken on the real device | done |
 | M5 | Listening: hold-to-talk, voice level, STT, full voice turn | hold, speak, let go, the bot acts, the reply is spoken | done |
@@ -973,7 +975,7 @@ measurements (context, reliability, timing) are still to be taken.
 | M8 | xAI as a speech service (§5.6.1) | the device speaks with an xAI voice, a voice message is transcribed by xAI, and the tests pass against a fake xAI server | planned, not built |
 | M9 | Firmware releases and the web installer (§4.7) | "Release firmware" publishes `v<version>` with the four parts, the manifest and the notices; the installer page on GitHub Pages installs it from the browser and the device keeps its settings; **Erase device** gives a clean start | released: v0.6.0 on 13 Nov 2026 |
 | M10 | Boards and what they can do (§4.8): a board layer, and the AMOLED-1.8 as a second board | the AMOLED-1.8 shows the face, speaks and listens through a bridge, and is set up from a phone; the LCD-1.46 works as before; CI and a release build both boards; the installer page installs either from its own button | built (firmware 0.6.2): the AMOLED-1.8 (V2) works with real speech on the always-on bridge; the LCD-1.46's hardware check is still to come before the v0.6.2 release. Boards without a speaker or a microphone are described, not built |
-| M11 | Turn records and attention (§5.11, §4.3.1) | the test script in `docs/grok-bot-setup.md` runs on a second bot on the always-on bridge, its turns show the calls, checks and timings, and the results are written up; attention starts, outlasts the old 10-minute expiry and ends with the next message, on both boards, and the first bot's replies reach its desk throughout | agreed 19 Nov 2026, being built (firmware 0.6.3) |
+| M11 | Turn records and attention (§5.11, §4.3.1) | the test script in `docs/grok-bot-setup.md` runs on a second bot on the always-on bridge, its turns show the calls, checks and timings, and the results are written up; attention starts, outlasts the old 10-minute expiry and ends with the next message, on both boards, and the first bot's replies reach its desk throughout | built (firmware 0.6.3): the test script's messages 1 to 9 ran on a test bot on the always-on bridge on 20 Nov 2026 with every check passed, attention held 15 minutes and ended with the next message on the AMOLED-1.8, and the first bot's desk stayed its own (results in `docs/grok-bot-setup.md`). The LCD-1.46's hardware check is still to come before the v0.6.3 release |
 
 M1 and M2 came first so that any surprise on the Grok Bot side showed up before the firmware was far
 along. M7, M8, M9 and M10 don't depend on each other, so any can come first.
@@ -982,9 +984,9 @@ along. M7, M8, M9 and M10 don't depend on each other, so any can come first.
 
 | Risk | Plan |
 |---|---|
-| Routine runs may not see the ongoing chat, so voice answers lose context | test in M2; fallback: `recent` in the webhook body |
-| The bot may not always follow the skill (missed status or missed speech) | turn records check every turn (§5.11), measured on a test bot in M11; tighten the skill text; the bridge's own states cover voice turns |
-| 30–40 s per voice turn | clear "thinking" animation; timings in the history and the turn records to tune the bot's instructions |
+| Routine runs may not see the ongoing chat, so voice answers lose context | still to test (the 20 Nov 2026 run didn't show it: its typed message held the spoken question too); fallback: `recent` in the webhook body |
+| The bot may not always follow the skill (missed status or missed speech) | turn records check every turn (§5.11). On a test bot (20 Nov 2026) every check passed on the test script's messages 1 to 9; the routine's first run skipped "thinking" once (1 of 3 spoken turns), which the bridge's own "thinking" covers. Tighten the skill text if the records show misses |
+| A voice turn takes a while (another project measured 30–40 s) | measured 8–11 s from the webhook to the reply on a test bot (20 Nov 2026); clear "thinking" animation; timings in the history and the turn records to tune the bot's instructions |
 | The MCP call doesn't identify the calling bot (confirmed 19 Nov 2026: every call looks the same) | bots after the first pass their name; calls without one go to the default bot (§5.5), and turn records note it |
 | Adding a second bot used to cut off the first bot's typed replies (unnamed calls were refused) | the default bot is set when a second bot is added (§5.5) |
 | A call from a second bot (such as a test bot) that forgets its `bot:` line goes to the default bot, so its words reach the first bot's desk; nothing in a call identifies the bot, so the checks can't catch it (the turn shows up as the default bot's, noted as found by default) | each later bot's instructions name it; while testing, watch that the first bot's desk stays quiet |

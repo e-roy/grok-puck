@@ -4,8 +4,8 @@ Step 5 of the [setup guide](setup.md): by now the bridge runs behind its public 
 admin page has your bot and an approved device.
 
 **Status: all three steps work with Grok Bot.** Typed chat, the test message and hold-to-talk all
-reach the desk. The checks at the end ([Checking what the bot does](#checking-what-the-bot-does)) have
-not been run yet.
+reach the desk. The checks at the end ([Checking what the bot does](#checking-what-the-bot-does)) ran
+on a test bot on 20 Nov 2026: it followed every instruction.
 
 Three things connect a bot to the desk. Each one changes your Grok Bot account, so do them one at a
 time and check each before the next:
@@ -128,8 +128,9 @@ hold the device, ask something, and let go.
 
 ## Checking what the bot does
 
-Not run yet. Record the results (counts and timings only, never reply text) here and in
-`docs/spec.md` (section 9, Risks).
+Run once, on a test bot (20 Nov 2026): the [results](#results-20-nov-2026) are at the end. Record
+new results the same way (counts and timings only, never reply text), here and in `docs/spec.md`
+(section 9, Risks).
 
 Every turn the bot takes shows under **History** → **Turns** in the admin page: its desk calls in
 order, with their times, checked against the instructions above (spec §5.11). **Export** saves them
@@ -168,3 +169,31 @@ What the results tell:
    desk would speak over the call: keep the device muted during voice chats.
 6. **Limits:** the bridge allows 60 voice messages, 120 `desk_say` and 600 `desk_status` calls an
    hour; Grok Bot allows 200 webhook runs an hour per routine.
+
+### Results (20 Nov 2026)
+
+A test bot with the standing instructions above (instruction 3 as it reads now) and its `bot:`
+line, on a bridge it shared with a first bot that names none; firmware 0.6.3 on its device.
+Messages 1 to 9 were sent; 10 and 11 were skipped.
+
+- **Every check passed** on the 10 turns of messages 1 to 9: "thinking" first 10 of 10, ended 10
+  of 10, `request_id` 2 of 2, question spoken 1 of 1, no repeats, no errors. "Working" came on the
+  two turns that used the web, and on no other.
+- **Before the script,** while setting it up: one reply was refused because the bot had no voice
+  yet, and the routine's first run (the admin page's **Send a test message**) replied without
+  "thinking" first: 1 of its 3 spoken turns.
+- **Attention** (message 3): "waiting" 4.6 s into the turn, the question 8 s later; it stayed
+  15 minutes, past the old 10-minute expiry, and the bot's "thinking" for the answer ended it at
+  once.
+- **No reply** (message 5): "thinking", then "idle", and nothing spoken.
+- **Code and links** (message 6): 92 of 179 characters spoken.
+- **The first bot's desk** stayed quiet throughout: no call from the test bot lost its name.
+- **Timing:** typed turns took 2.8 to 20.7 s from the first call to the reply (median about 5 s;
+  the long one used the web). Spoken turns took 8.1 to 11.1 s from the webhook to the reply
+  (median 10.8 s), the first call 8 to 11 s after the webhook.
+- **Still to test:** context (message 8: the typed message held the spoken question too, so it
+  showed nothing; to repeat, type only "What is 17 times 23?", then ask the follow-up at the desk),
+  ten messages in a row (10) and the app's voice chat (11).
+
+What it changes: nothing in the standing instructions. The `bot:` line for a second bot works; a
+first bot keeps its instructions as they were.
