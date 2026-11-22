@@ -1,6 +1,6 @@
 // What the device remembers across restarts, kept in NVS (flash): its Wi-Fi networks, the bridge, the
-// key the bridge gave it, and the last look it was sent, so the right avatar shows before the bridge
-// answers. Nothing here is ever logged.
+// key the bridge gave it, and the last look it was sent (with the bot's name it shows), so the right
+// avatar shows before the bridge answers. Nothing here is ever logged.
 #pragma once
 
 #include <stdbool.h>
@@ -22,6 +22,7 @@ typedef struct {
     uint32_t color;  // 0xRRGGBB
     uint8_t volume;  // 0..100
     bool muted;
+    char bot_name[101];  // shown under the face (spec §4.3.2); "" for none
 } settings_t;
 
 // Opens the storage. The first start of firmware 0.6.0 moves the one network older firmware kept
@@ -30,7 +31,7 @@ esp_err_t settings_init(void);
 void settings_load(settings_t *out);
 
 esp_err_t settings_save_key(const char *key);  // "" removes it
-esp_err_t settings_save_look(uint8_t shape, uint32_t color, uint8_t volume, bool muted);
+esp_err_t settings_save_look(uint8_t shape, uint32_t color, uint8_t volume, bool muted, const char *bot_name);
 // A new bridge address also removes the device key: a key belongs to one bridge. *changed says
 // whether the address was different (nothing is written when it wasn't).
 esp_err_t settings_save_bridge(const char *url, bool *changed);

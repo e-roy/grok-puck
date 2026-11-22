@@ -52,6 +52,26 @@ static const char *TAG = "face";
 #define BADGE_COLOR 0xfbbf24
 #define BANG_COLOR 0x1f2937
 
+// The bot's name (spec §4.3.2), when the admin page shows it: in Montserrat Bold at 24 px (made for it:
+// fonts/README.md), in grey, under the face. Where the screen has black to spare under the ring (the
+// AMOLED-1.8), it sits there all the time. On a round screen (the LCD-1.46) it sits between the body
+// and the circle's edge, where the ring and the orbiting dots pass, so it shows only while neither does
+// (idle, attention, offline) and fades out while they show. It drifts with the face and stays put
+// while the avatar hops. A long name ends in "..." where its line is full.
+LV_FONT_DECLARE(font_name_bold_24)
+#define NAME_FONT (&font_name_bold_24)
+#define NAME_LINE 26                                  // NAME_FONT's line height
+#define NAME_ROOM ((BOARD_LCD_HEIGHT - RING) / 2)     // the black under the ring
+#define NAME_BELOW (NAME_ROOM >= NAME_LINE + 10)      // room for the line and the drift
+#define NAME_BELOW_W PX(330)
+#define NAME_BELOW_Y (RING / 2 + 10 + NAME_LINE / 2)  // its centre, 10 px under the ring
+#define NAME_GAP 10                                   // under the body: from the shape's lowest point
+#define NAME_EDGE 6                                   // and from the screen's round edge
+#define NAME_UNDER_MAX_W PX(240)
+#define NAME_FADE_STEP 32                             // opacity per frame: about a quarter of a second
+#define NAME_GREY 0x9ca3af                            // about a third of white's brightness
+#define NAME_GREY_OFFLINE 0x6b7280
+
 #if BOARD_OLED
 // An OLED wears where pixels stay lit, and the body would sit in one place all day: the whole face
 // drifts slowly around a small loop, a pixel at a time, never more than DRIFT_PX from the centre.
@@ -68,6 +88,9 @@ static const char *SHAPE_NAMES[FACE_SHAPE_COUNT] = {"blob", "teardrop", "cloud",
 
 // Where the eyes sit on each shape (fraction of the body radius, down is positive).
 static const float EYE_Y[FACE_SHAPE_COUNT] = {-0.04f, 0.16f, 0.04f, -0.02f, -0.04f, -0.04f};
+// Each shape's lowest point (fraction of the body radius): on a round screen the name's line starts
+// NAME_GAP below it, so it never touches the body, however it hops or leans.
+static const float BODY_LOW[FACE_SHAPE_COUNT] = {0.86f, 0.98f, 0.68f, 0.84f, 0.90f, 0.92f};
 
 static lv_obj_t *body;
 static lv_image_dsc_t body_dsc;
@@ -76,8 +99,12 @@ static lv_obj_t *eyes[2];
 static lv_obj_t *ring;
 static lv_obj_t *dots[DOTS];
 static lv_obj_t *badge;  // attention's "!"
+static lv_obj_t *name;   // the bot's name, hidden while it has none
 static lv_obj_t *root;
 static int32_t body_x, body_y;  // where the body sits, from the centre: the drift and the hop
+static int32_t name_x = INT32_MIN, name_y;
+static int32_t name_under_y;    // on a round screen: its centre, below the shape
+static int name_opa;            // 0..255, fading in and out
 
 // The setup screen.
 static lv_obj_t *setup_screen;
@@ -193,10 +220,41 @@ static lv_color_t accent(void) {  // the ring and dots: the body colour, lighten
     return lv_color_make(r + (255 - r) * 35 / 100, g + (255 - g) * 35 / 100, b + (255 - b) * 35 / 100);
 }
 
+// The name's grey, dimmer while offline, as the body is.
+static void apply_name_color(void) {
+    if (!name) return;
+    const bool offline = atomic_load(&state) == FACE_OFFLINE;
+    lv_obj_set_style_text_color(name, lv_color_hex(offline ? NAME_GREY_OFFLINE : NAME_GREY), 0);
+}
+
 static void apply_colors(void) {
     const lv_color_t eye = luminance(color) > 0.6f ? lv_color_hex(0x1f2937) : lv_color_white();
     for (int i = 0; i < 2; i++) lv_obj_set_style_bg_color(eyes[i], eye, 0);
     for (int i = 0; i < DOTS; i++) lv_obj_set_style_bg_color(dots[i], accent(), 0);
+}
+
+// On a round screen the name's height and width follow the shape: its line starts NAME_GAP below the
+// shape's lowest point, and is as wide as the circle allows there (at most NAME_UNDER_MAX_W).
+static void layout_name(void) {
+    if (!name) return;
+    int32_t width = NAME_BELOW_W;
+    if (!NAME_BELOW) {
+        const int32_t top = (int32_t)(BODY_LOW[shape] * BODY / 2) + NAME_GAP;
+        name_under_y = top + NAME_LINE / 2;
+        const float r = FIT / 2.0f - NAME_EDGE, bottom = (float)(top + NAME_LINE);
+        width = r > bottom ? (int32_t)(2 * sqrtf(r * r - bottom * bottom)) : 0;
+        if (width > NAME_UNDER_MAX_W) width = NAME_UNDER_MAX_W;
+    }
+    lv_obj_set_size(name, width, NAME_LINE);
+    name_x = INT32_MIN;  // placed again on the next frame
+}
+
+// Moves the name only when its place changes.
+static void place_name(int32_t x, int32_t y) {
+    if (x == name_x && y == name_y) return;
+    name_x = x;
+    name_y = y;
+    lv_obj_align(name, LV_ALIGN_CENTER, x, y);
 }
 
 // ---- animation ----
@@ -362,6 +420,17 @@ static void tick(lv_timer_t *timer) {
 
     show(ring, ring_on);
     place_body(DX + hx, DY + hy);
+    // The name drifts with the face and stays put while it hops. Under the body (a round screen) it
+    // fades out while the ring or the dots show, as they pass where it sits.
+    const bool name_on = lv_label_get_text(name)[0] != '\0' && (NAME_BELOW || (!ring_on && !dots_on));
+    const int opa = name_on ? (name_opa + NAME_FADE_STEP > 255 ? 255 : name_opa + NAME_FADE_STEP)
+                            : (name_opa - NAME_FADE_STEP < 0 ? 0 : name_opa - NAME_FADE_STEP);
+    if (opa != name_opa) {
+        name_opa = opa;
+        lv_obj_set_style_opa(name, (lv_opa_t)opa, 0);
+    }
+    show(name, name_opa > 0);
+    if (name_opa > 0) place_name(DX, DY + (NAME_BELOW ? NAME_BELOW_Y : name_under_y));
     show(badge, badge_on);
     if (badge_on) lv_obj_align(badge, LV_ALIGN_CENTER, BADGE_X + DX + hx, BADGE_Y + DY + hy);
     for (int i = 0; i < DOTS; i++) show(dots[i], dots_on);
@@ -470,6 +539,17 @@ void face_create(lv_obj_t *screen) {
         lv_obj_set_style_radius(eyes[i], LV_RADIUS_CIRCLE, 0);
         lv_obj_set_clickable(eyes[i], false);
     }
+    // The bot's name; created before the setup screen, which covers it.
+    name = lv_label_create(screen);
+    lv_obj_set_style_text_font(name, NAME_FONT, 0);
+    lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(name, LV_LABEL_LONG_MODE_DOTS);
+    lv_label_set_text(name, "");
+    lv_obj_set_clickable(name, false);
+    lv_obj_set_style_opa(name, LV_OPA_TRANSP, 0);
+    lv_obj_set_hidden(name, true);
+    layout_name();
+    apply_name_color();
     for (int i = 0; i < DOTS; i++) {
         dots[i] = lv_obj_create(screen);
         lv_obj_remove_style_all(dots[i]);
@@ -494,13 +574,21 @@ void face_set_avatar(face_shape_t new_shape, uint32_t rgb) {
     if (!body_pixels) return;
     render_body();
     apply_colors();
+    layout_name();
+}
+
+void face_set_name(const char *text) {
+    if (!name) return;
+    if (strcmp(lv_label_get_text(name), text) != 0) lv_label_set_text(name, text);  // tick() fades it in or out
 }
 
 void face_set_state(face_state_t new_state) {
     if (new_state >= FACE_STATE_COUNT) return;
+    const bool was_offline = atomic_load(&state) == FACE_OFFLINE;
     atomic_store(&state, new_state);
     state_since_ms = now_ms();
     if (body) lv_obj_set_style_image_opa(body, new_state == FACE_OFFLINE ? 90 : LV_OPA_COVER, 0);
+    if (was_offline != (new_state == FACE_OFFLINE)) apply_name_color();  // dimmed with the body
 }
 
 face_state_t face_get_state(void) { return (face_state_t)atomic_load(&state); }

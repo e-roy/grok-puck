@@ -113,20 +113,25 @@ static void on_config(const link_config_t *c) {
         if (s < FACE_SHAPE_COUNT) new_shape = s;
         new_color = c->color;
     }
-    ESP_LOGI(TAG, "config: \"%s\", %s #%06lx, volume %d%s", c->name, face_shape_name(new_shape), (unsigned long)new_color,
-             c->volume, c->muted ? ", muted" : "");
-    if (new_shape != face_get_shape() || new_color != face_get_color()) {
+    ESP_LOGI(TAG, "config: \"%s\", %s #%06lx, volume %d%s%s%s%s", c->name, face_shape_name(new_shape), (unsigned long)new_color,
+             c->volume, c->muted ? ", muted" : "", c->bot_name[0] ? ", shows \"" : "", c->bot_name, c->bot_name[0] ? "\"" : "");
+    const bool name_changed = strcmp(c->bot_name, settings.bot_name) != 0;
+    if (new_shape != face_get_shape() || new_color != face_get_color() || name_changed) {
         lvgl_port_lock(0);
-        face_set_avatar(new_shape, new_color);  // redraws the body: under a second
+        if (new_shape != face_get_shape() || new_color != face_get_color()) {
+            face_set_avatar(new_shape, new_color);  // redraws the body: under a second
+        }
+        face_set_name(c->bot_name);
         lvgl_port_unlock();
     }
     if (new_shape != settings.shape || new_color != settings.color || c->volume != settings.volume ||
-        c->muted != settings.muted) {
+        c->muted != settings.muted || name_changed) {
         settings.shape = new_shape;
         settings.color = new_color;
         settings.volume = c->volume;
         settings.muted = c->muted;
-        settings_save_look(new_shape, new_color, c->volume, c->muted);
+        snprintf(settings.bot_name, sizeof(settings.bot_name), "%s", c->bot_name);
+        settings_save_look(new_shape, new_color, c->volume, c->muted, settings.bot_name);
     }
 }
 
@@ -354,6 +359,7 @@ void app_main(void) {
     lvgl_port_lock(0);
     face_create(lv_screen_active());
     face_set_avatar(settings.shape < FACE_SHAPE_COUNT ? (face_shape_t)settings.shape : FACE_BLOB, settings.color);
+    face_set_name(settings.bot_name);  // the last one the bridge sent, until it answers
     face_set_state(FACE_OFFLINE);
     for (lv_indev_t *indev = lv_indev_get_next(NULL); indev; indev = lv_indev_get_next(indev)) {
         lv_indev_set_long_press_time(indev, HOLD_MS);
