@@ -11,6 +11,7 @@ import type { JWTVerifyGetKey } from 'jose';
 import { z } from 'zod';
 import { accessVerifier } from './access.ts';
 import { wav } from './audio.ts';
+import { shownName } from './botname.ts';
 import { Clip } from './clip.ts';
 import { errorText } from './errors.ts';
 import type { Config } from './config.ts';
@@ -19,7 +20,7 @@ import { webhookUrlProblem } from './grokbot.ts';
 import type { DeviceHub } from './hub.ts';
 import { hashKey, masked, newKey } from './keys.ts';
 import type { McpActivity } from './mcp.ts';
-import { DISPLAY_STATES } from './protocol.ts';
+import { DISPLAY_STATES, FEATURE_BOT_NAME } from './protocol.ts';
 import { checkTtsModels, listModels, makeTts } from './speech.ts';
 import { AVATAR_SHAPES, type Bot, SPEAK_ON, type SpeechService, type Store } from './store.ts';
 import type { TurnLog } from './turns.ts';
@@ -58,6 +59,7 @@ const DevicePatch = z
     volume: z.number().int().min(0).max(100),
     muted: z.boolean(),
     speakOn: z.enum(SPEAK_ON),
+    showBotName: z.boolean(),
     timings: z.object({ maxListenMs: z.number().int().min(5000).max(120_000) }).partial(),
   })
   .partial();
@@ -224,6 +226,10 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     const body = parse(DevicePatch, req.body, reply);
     if (!body) return;
     if (body.botId && !store.bot(body.botId)) return bad(reply, 'Unknown bot.');
+    // Only firmware that lists "bot-name" can show it (spec §4.3.2); turning it off always works.
+    if (body.showBotName === true && !device.features.includes(FEATURE_BOT_NAME)) {
+      return bad(reply, `${device.name}'s firmware can't show the bot's name: firmware 0.6.3 and later can.`);
+    }
     const { timings, ...rest } = body;
     const muting = body.muted === true && !device.muted;
     if (body.botId !== undefined && body.botId !== device.botId) desk.clearAttention(device.id); // another bot isn't waiting
@@ -433,7 +439,12 @@ function overview(ctx: AdminContext) {
       speaking: hub.speaking(d.id), // where its speech plays right now: device, page, both or null
       listen: hub.listenSummary(d.id), // its Listen pages: how many are open, whether one is ready
     })),
-    bots: s.bots.map((b) => ({ ...b, webhookKey: masked(b.webhookKey), webhookKeySet: Boolean(b.webhookKey) })),
+    bots: s.bots.map((b) => ({
+      ...b,
+      webhookKey: masked(b.webhookKey),
+      webhookKeySet: Boolean(b.webhookKey),
+      shownName: shownName(b.name), // as a desk shows it under its face (spec §4.3.2); "" for none
+    })),
     defaultBotId: store.bot(s.defaultBotId) ? s.defaultBotId : '', // where calls that name no bot go (spec §5.5)
     speech: { tts: service(s.speech.tts), stt: { ...service(s.speech.stt), language: s.speech.stt.language, mockText: s.speech.stt.mockText } },
     mcp: {

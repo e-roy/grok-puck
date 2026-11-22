@@ -5,6 +5,7 @@
 // elsewhere". The hub decides what each clip plays on; this keeps track of the pages and talks to them.
 import type { FastifyBaseLogger } from 'fastify';
 import type { RawData, WebSocket } from 'ws';
+import { nameShownOn } from './botname.ts';
 import { type BridgePageMessage, type PageDevice, type PageRole, type PageState, parsePageMessage } from './protocol.ts';
 import type { Store } from './store.ts';
 
@@ -206,6 +207,8 @@ export class ListenPages {
           muted: d.muted,
           speak_on: d.speakOn,
           page_ready: this.active(d.id) !== undefined,
+          board: d.board,
+          shown_name: nameShownOn(this.store, d) || null, // as the device shows it, where it does
         };
       });
   }

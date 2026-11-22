@@ -3,6 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyBaseLogger } from 'fastify';
 import type { RawData, WebSocket } from 'ws';
+import { nameShownOn } from './botname.ts';
 import type { Clip } from './clip.ts';
 import { hashKey, keyMatches, newKey } from './keys.ts';
 import { ListenPages } from './listen.ts';
@@ -278,6 +279,7 @@ export class DeviceHub {
 
   configFor(device: Device): DeviceConfig {
     const bot = this.store.bot(device.botId);
+    const botName = nameShownOn(this.store, device);
     return {
       type: 'config',
       name: device.name,
@@ -285,6 +287,7 @@ export class DeviceHub {
       volume: device.volume,
       muted: device.muted,
       timings: device.timings,
+      ...(botName ? { botName } : {}),
     };
   }
 
@@ -356,6 +359,7 @@ export class DeviceHub {
         volume: 70,
         muted: false,
         speakOn: 'device',
+        showBotName: false,
         timings: { ...DEFAULT_TIMINGS },
         firmware: hello.firmware,
         features: [],
