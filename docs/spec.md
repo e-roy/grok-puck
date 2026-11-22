@@ -817,9 +817,6 @@ is also the way to hear them on headphones.
   slider sets the device only; the page uses the computer's volume.
 - **Device offline:** with Speak on set to the Listen page (or both), the page still plays while the
   device is offline.
-- **Later, not in this step:** hold-to-talk on the page with the computer's microphone (hold a button
-  or the space bar), through the same STT and webhook. With it, the page would work as a desk without
-  the device, for example on a laptop when travelling.
 
 ### 5.11 Turn records: what the bot called, checked *(agreed 19 Nov 2026, milestone M11)*
 
