@@ -19,6 +19,8 @@ export interface PageDevice {
   muted: boolean;
   speak_on: SpeakOn;
   page_ready: boolean; // a Listen page (this one or another) is ready to play its speech
+  board: string; // the board it runs on ("" before firmware 0.6.2): where its bot's name goes
+  shown_name: string | null; // its bot's name as it shows it under its face (spec §4.3.2); null: none
 }
 
 export interface ListenState {

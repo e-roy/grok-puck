@@ -1,9 +1,10 @@
 // A preview of a bot's avatar: its shape and colour with two eyes, optionally showing the state its
 // device shows (idle breathes, listening opens its eyes wide in a swelling ring, thinking has dots
-// orbiting, speaking pulses, offline closes its eyes…).
+// orbiting, speaking pulses, offline closes its eyes…), and the bot's name where its device shows it.
 // An approximation for choosing settings and for the Listen page; the device draws its own.
 import type { CSSProperties } from 'react';
 import type { Avatar as AvatarSettings } from '@/api.ts';
+import { cutName, NAME_GAP, NAME_LINE, namePlace, nameShownIn, textWidth } from '@/lib/botname.ts';
 
 function superellipse(r: number, n = 4, steps = 64): string {
   const points: string[] = [];
@@ -83,9 +84,69 @@ function AttentionBadge() {
   );
 }
 
-export function Avatar({ avatar, size = 96, state }: { avatar: AvatarSettings; size?: number; state?: AvatarState }) {
+// The lowest point of each of this preview's shapes, in its units: on a round screen the name sits a
+// little below it, as on the device.
+const PREVIEW_LOW: Record<AvatarSettings['shape'], number> = { blob: 89.5, teardrop: 98, cloud: 82, hex: 93, squircle: 92, circle: 92 };
+
+/**
+ * The bot's name as the device draws it (spec §4.3.2), in this preview's units: in the black under the
+ * ring, where the device's screen has room there, or under the body; cut where the device cuts it.
+ */
+function previewName(text: string, board: string, avatar: AvatarSettings, state: AvatarState | undefined) {
+  const place = namePlace(board, avatar.shape);
+  const shown = cutName(text, place.width);
+  const k = 47 / place.ring; // this preview's ring has a radius of 47
+  const y = place.under === 'ring' ? 52 + place.y * k : PREVIEW_LOW[avatar.shape] + (NAME_GAP + NAME_LINE / 2) * k;
+  return {
+    text: shown,
+    visible: nameShownIn(place, state), // under the body it fades out while the ring or the dots show
+    y,
+    fontSize: 24 * k,
+    length: textWidth(shown) * k,
+    opacity: state === 'offline' ? 0.6 : 1, // dimmer while offline, as on the device
+    // Under the ring the screen's bottom edge; under the body, enough for the line.
+    bottom: place.under === 'ring' ? Math.ceil(52 + (place.screenHeight / 2) * k) : Math.max(100, Math.ceil(y + (NAME_LINE / 2) * k)),
+  };
+}
+
+export function Avatar({
+  avatar,
+  size = 96,
+  state,
+  name,
+  board = '',
+}: {
+  avatar: AvatarSettings;
+  size?: number;
+  state?: AvatarState;
+  /** The bot's name as its device shows it (already in the letters it can show), or none. */
+  name?: string | null;
+  /** The device's board, for where the name goes (the LCD-1.46's place for none). */
+  board?: string;
+}) {
   const eyes = luminance(avatar.color) > 0.6 ? '#1f2937' : '#ffffff';
   const offline = state === 'offline';
+  const label = name ? previewName(name, board, avatar, state) : null;
+  const height = label ? label.bottom : 100; // the same in every state, so nothing jumps as the name fades
+  // The device's grey is drawn on black; here the theme's grey reads on either background. It drifts
+  // with the face and stays put while the avatar hops, so it sits outside the hop.
+  const nameText = label && (
+    <text
+      x="50"
+      y={label.y}
+      textAnchor="middle"
+      dominantBaseline="central"
+      fontSize={label.fontSize}
+      fontWeight={700} // as the device's Montserrat Bold
+      fill="var(--muted-foreground)"
+      opacity={label.visible ? label.opacity : 0}
+      style={{ transition: 'opacity 0.25s' }}
+      textLength={label.length}
+      lengthAdjust="spacingAndGlyphs"
+    >
+      {label.text}
+    </text>
+  );
   const attention = state === 'attention';
   const wide = state === 'listening'; // as on the device: eyes 12% larger while it listens
   const look = state === 'thinking' ? -5 : state === 'speaking' ? -2 : 0; // thinking looks up
@@ -98,11 +159,11 @@ export function Avatar({ avatar, size = 96, state }: { avatar: AvatarSettings; s
   return (
     <svg
       width={size}
-      height={size}
-      style={{ width: size, height: size }} // wins over containers that size icons (toggle buttons)
-      viewBox="0 0 100 100"
+      height={(size * height) / 100}
+      style={{ width: size, height: (size * height) / 100 }} // wins over containers that size icons (toggle buttons)
+      viewBox={`0 0 100 ${height}`}
       role="img"
-      aria-label={`${avatar.shape} avatar${state ? `, ${LABELS[state]}` : ''}`}
+      aria-label={`${avatar.shape} avatar${state ? `, ${LABELS[state]}` : ''}${label?.visible ? `, showing the name “${label.text}”` : ''}`}
       className="avatar-motion shrink-0 overflow-visible"
     >
       {state === 'waiting' && (
@@ -144,6 +205,7 @@ export function Avatar({ avatar, size = 96, state }: { avatar: AvatarSettings; s
         </g>
         {attention && <AttentionBadge />}
       </g>
+      {nameText}
       {orbit && (
         <g style={motion('avatar-orbit', state === 'working' ? 1.2 : 2.4, 'linear')}>
           {[0, 120, 240].map((deg) => (

@@ -175,7 +175,7 @@ function Player({ state, device, link }: { state: ListenState; device: PageDevic
 
   return (
     <section aria-labelledby="listen-title" className="flex flex-col items-center gap-5 text-center">
-      <Avatar avatar={device.bot?.avatar ?? GREY} size={192} state={avatar} />
+      <Avatar avatar={device.bot?.avatar ?? GREY} size={192} state={avatar} name={device.shown_name} board={device.board} />
       <div>
         <h1 id="listen-title" className="text-xl font-semibold tracking-tight">
           {device.bot?.name ?? device.name}
