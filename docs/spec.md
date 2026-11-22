@@ -9,7 +9,8 @@ on 15 Nov 2026: **boards and what they can do** (§4.8, milestone M10), with a s
 Waveshare ESP32-S3-Touch-AMOLED-1.8 (firmware 0.6.2), now supported. Agreed on 19 Nov 2026 and built,
 tried on a test bot on 20 Nov 2026: **turn records**, which show what the bot called and check it
 against its standing instructions (§5.11, milestone M11), and **attention**: the device shows
-clearly that the bot waits for you, until your next message (§4.3.1, firmware 0.6.3). Items marked
+clearly that the bot waits for you, until your next message (§4.3.1, firmware 0.6.3). Agreed on 22 Nov
+2026: **the bot's name** under the face, an option per device (§4.3.2, firmware 0.6.3). Items marked
 *(proposal)* are suggestions you can change; items marked *(to test)* depend on how Grok Bot actually
 behaves, and get checked at milestone M2.
 
@@ -44,7 +45,8 @@ into text and back. xAI's speech API can be one of them (§5.6.1); no other xAI 
 
 **Not in v1**
 - Firmware updates over Wi-Fi: updates go over USB, from the web installer (§4.7).
-- A wake word, a battery, or text captions on the screen.
+- A wake word, a battery, or captions of the speech on the screen (the bot's name can show under the
+  face: §4.3.2).
 - Reading the Grok Bot app's chats or status directly: there is no documented way to do that.
 
 ---
@@ -189,6 +191,63 @@ that coming back to the desk you see that the app is waiting for you.
   sound, the end and the missing expiry are the bridge's, so they work with any firmware. Firmware
   0.6.3 on an older bridge shows the new look for "waiting", which that bridge ends after 10 minutes,
   as before.
+
+#### 4.3.2 The bot's name *(agreed 22 Nov 2026, firmware 0.6.3)*
+
+With several bots on one bridge, the desk can say whose it is: **Show the bot's name**, a switch per
+device on its card in the admin page (§5.8), off by default. The name is the bot's name as set in the
+admin page's Bots section, so a rename reaches the desk at once.
+
+- **Where:** under the face, centred, in a soft grey (#9ca3af), never touching the avatar or the
+  attention badge (§4.3.1). It drifts with the face and stays put while the avatar hops.
+  - **Under the ring** where the screen has black to spare there: on the AMOLED-1.8, the 47 px under
+    the face. The name sits 10 px below the ring, at most 295 px wide (about 20 letters), and shows in
+    every state.
+  - **Under the body** on a round screen, which has nothing to spare: on the LCD-1.46 the band between
+    the body and the circle's edge is where the ring swells (listening, speaking) and the dots orbit
+    (thinking, working). The name's line starts 10 px below the shape's lowest point, so it never
+    touches the body however it hops or leans, and is as wide as the circle allows 6 px from its edge,
+    at most 240 px: 161 px for the teardrop, whose body reaches lowest, to 240 px for the cloud (about
+    10 to 16 letters). It shows while neither the ring nor the dots do (idle, attention, offline) and
+    fades out in about a quarter of a second while they show, then back.
+  - The rule goes by the screen, not the board, so later screens follow it: under the ring when the
+    black there is at least 36 px (the line, 26 px, and the drift), under the body otherwise.
+  - Tried on the AMOLED-1.8 (22 Nov 2026, demo builds): on the body, below the eyes, the name read
+    as a mouth, so a round screen has it under the body instead.
+- **Font:** Montserrat Bold at 24 px, the family of the setup screen's text, heavier: the built-in
+  Montserrat Medium looked thin for a name (compared with SemiBold and Bold on the AMOLED-1.8, 22 Nov
+  2026). LVGL builds in Montserrat Medium only, so the firmware carries a font made from Montserrat
+  Bold with LVGL's converter, its 95 printable ASCII characters only (about 15 KB of flash;
+  `firmware/main/fonts/README.md` says how, `firmware/NOTICES.md` lists it). Capitals are about 1.5 mm
+  tall on the LCD-1.46 and 1.3 mm on the AMOLED-1.8; a 14 px font would be under 1 mm.
+- **A long name** is cut where its line is full, ending in "..." (three dots: the font has no "…").
+- **When:** as above; dimmer while offline (#6b7280). The setup screen covers it, as it covers the
+  face. The device keeps the name with the avatar's look, so after a restart it shows before the
+  bridge answers.
+- **Burn-in (OLED):** the name drifts with the face (§4.8), up to 6 design pixels each way, more than
+  its strokes are thick, so each pixel of a letter is lit only part of the time; and it is grey, about
+  a third of white's brightness. It wears the panel less than the body, which stays lit inside, so it
+  doesn't dim by itself: the screen's dimming (M6) will dim it with the rest.
+- **Characters:** the name's font has only basic Latin (ASCII: letters without accents, digits,
+  punctuation), as do the built-in ones. The bridge sends the name in those characters: accents come off (é → e, ü → u, ç → c),
+  a few letters are spelled out (ß → ss, æ → ae, ø → o, ł → l), curly quotes, dashes and "…" become
+  plain ones, and everything else is left out: emoji, other scripts, symbols. Spaces at the ends, and
+  doubled ones, go. A name with nothing left shows nothing. The admin page says when the device shows
+  a name differently, and when it can't show it at all.
+  - More characters are possible later, as flash has room (the app uses 1.6 MB of its 4 MB): the
+    name's font made again with Latin-1 and Latin Extended-A (the accented letters of most European
+    languages) adds about 35 KB; Cyrillic about as much again; Greek needs another font; Chinese, Japanese or Korean 1 MB or more;
+    colour emoji can't be drawn with LVGL's fonts. Not in this step.
+- **Elsewhere:** the card's preview (§5.8) and the Listen page (§5.10) draw the name where the device
+  does, cut where the device cuts it, give or take a letter (they measure with the device font's
+  letter widths), in the page's grey (the device's grey is meant for black), and under the body only
+  at rest, as on the device. On the card's small preview it only shows where the name sits; the text
+  under the switch gives it in full, and the cut when there is one.
+- **Compatibility:** firmware 0.6.3 lists `bot-name` in its hello's `features`. The admin page offers
+  the switch only to such firmware (for other firmware it is greyed out, with why), and the bridge
+  refuses to turn it on for them. The bridge puts the name in `config` (§5.3) only while the switch is
+  on and the firmware lists `bot-name`; older firmware ignores fields it doesn't know anyway. Firmware
+  0.6.3 on an older bridge is sent no name, so it shows none.
 
 ### 4.4 Touch
 **Hold to talk** is the only way to speak: letting go when finished is what a person expects. There
@@ -407,6 +466,8 @@ too (the gaze, the wobble, the orbiting dots).
   width, with about 47 px of black above and below.
 - Later sizes follow the same rule: a round screen fills its circle, a landscape screen its height.
 - The setup screen keeps its layout (about 300 × 330 px), which fits both screens.
+- The bot's name (§4.3.2) goes in the black under the ring where there is room (the AMOLED-1.8), and
+  under the body otherwise (the LCD-1.46), at rest only.
 - An AMOLED's black is off, so the face looks as it does on the LCD. Its brightness is a panel command
   rather than a backlight (`board_set_backlight` sends it), and the panel stays dark until the first
   frame is drawn.
@@ -495,7 +556,8 @@ One WebSocket per device: JSON control messages plus binary audio frames.
     show "speaking" without playing audio; from firmware 0.6.2, its board, `"board":
     "waveshare-amoled-1.8"`, and that board's hardware in `features`: `"touch"`, `"microphone"`,
     `"speaker"` (§4.8); from firmware 0.6.3, `"attention"`: it shows "waiting" with the "!" and the
-    hop (§4.3.1). An older bridge ignores these fields; a board that doesn't look like an id is
+    hop (§4.3.1), and `"bot-name"`: it shows the bot's name under its face when `config` gives one
+    (§4.3.2). An older bridge ignores these fields; a board that doesn't look like an id is
     dropped, never the hello);
   - `listen.start`, then microphone frames (16 kHz PCM), then `listen.end` or `listen.cancel`;
   - `played` (a clip finished or was stopped);
@@ -507,7 +569,17 @@ One WebSocket per device: JSON control messages plus binary audio frames.
 - Bridge → device:
   - `pending` (waiting for approval);
   - `welcome` (the device key, on approval);
-  - `config` (name, bot avatar, volume, mute, longest message);
+  - `config` (name, bot avatar, volume, mute, longest message; and `botName`, the bot's name in the
+    characters the device can show, while its Show the bot's name is on and its hello lists
+    `bot-name`, §4.3.2):
+
+    ```json
+    { "type": "config", "name": "Desk",
+      "bot": { "name": "José ✨", "avatar": { "shape": "blob", "color": "#f59e0b" } },
+      "volume": 70, "muted": false, "timings": { "maxListenMs": 60000 }, "botName": "Jose" }
+    ```
+
+    `bot.name` stays the name as typed; without `botName` the device shows no name;
   - `show` (state to display: idle, thinking, working, waiting, error; and `speaking` while a Listen
     page plays its speech, only to devices whose hello lists `speaking`: firmware 0.6.0 logs a state
     it doesn't know and keeps what it shows. Never `listening`: while held, the device shows its own
@@ -655,6 +727,10 @@ approved device a card with:
   device waiting for approval too; and next to it the board as a badge ("AMOLED-1.8", its full name on
   hover; none for firmware before 0.6.2, §4.8);
 - name (edited in place), bot, volume on the device (slider), mute (switch), longest message;
+- **Show the bot's name** (switch, §4.3.2), saying what the device shows ("Under its face:
+  “Grok”"), how it differs ("as “Jose”: its font has basic Latin letters only"), or why it can't
+  (no bot, nothing in the name it can show, or firmware without `bot-name`: then the switch is greyed
+  out). With it on, the card's preview shows the name too;
 - **Speak on** (§5.10): the device, the Listen page or both, and whether a Listen page is open or ready
   for it, with a link to open one (`/listen?device=<id>`, in a new tab). A device whose firmware can't
   show "speaking" without audio (before 0.6.1) says so;
@@ -665,6 +741,8 @@ approved device a card with:
   says what will happen.
 
 **Bots.** A card per bot:
+- **Name**, as in the Grok Bot app; when a desk would show it differently (§4.3.2), the field says
+  how ("On a desk: “Jose”");
 - **Look:** shape as a row of previews to click, colour as swatches plus a picker; the preview is
   what the device draws;
 - **Voice:** a searchable list grouped by language and gender (Kokoro names say both: `af_` is
@@ -711,7 +789,9 @@ board badge from the device's `board` (`""` before firmware 0.6.2). For attentio
 for the owner, else `null`) and gives `defaultBotId` (`""` for none); `PUT /api/default-bot` sets it,
 `DELETE /api/devices/<id>/attention` clears attention, `GET /api/turns` lists the turn records (read
 only while the Turns view is open, not every 2 s with the overview) and `GET /api/turns/export`
-downloads them.
+downloads them. For the bot's name (§4.3.2): `PATCH /api/devices/<id>` with `{"showBotName": true}`
+(refused for firmware whose hello doesn't list `bot-name`), and the overview gives each device
+`showBotName` and each bot `shownName` (its name in the characters a device can show, `""` for none).
 
 ### 5.9 Security
 - Random 256-bit keys. Secrets are entered once and never shown again in full, and never logged.
@@ -788,9 +868,10 @@ is also the way to hear them on headphones.
     plays for; `ready: true` after a reconnect, when Start listening was pressed before; `ready: false`
     after Stop listening, or while the browser pauses its sound), `start` (Start listening or Play
     here), `played` (`{"type":"played","id":"<clip>"}`) and `stop`;
-  - bridge → page: `status` (the devices to pick from, each with its bot, online, muted, Speak on and
-    whether a page is ready for it; the device this page plays for; and its role: `off`, `here` or
-    `elsewhere`), `show` (what the device shows, `speaking` while the desk speaks anywhere, or
+  - bridge → page: `status` (the devices to pick from, each with its bot, online, muted, Speak on,
+    whether a page is ready for it, its board, and `shown_name`: the bot's name as the device shows it
+    under its face, `null` when it shows none, §4.3.2; the device this page plays for; and its role:
+    `off`, `here` or `elsewhere`), `show` (what the device shows, `speaking` while the desk speaks anywhere, or
     `listening` while the owner holds the device: `{"type":"show","state":"listening"}`), the audio
     messages above, and `error`.
 
@@ -810,6 +891,8 @@ is also the way to hear them on headphones.
 - **Attention** (§4.3.1): the page shows it with the device's look whatever the device's firmware,
   plays its chirp when the device's speech plays there, and starts its tab's title with "(!)" while
   it lasts.
+- **The bot's name** (§4.3.2): while the device shows it, the page's avatar shows it too, where the
+  device does; the page's heading has the name as typed.
 - **Stopping:** a tap on the device, or holding it to talk, stops speech wherever it plays. So does
   the page's Stop button, from any page for that device. Stop listening stops speech only in its own
   tab, as it takes the page out (above).
@@ -1003,4 +1086,6 @@ along. M7, M8, M9 and M10 don't depend on each other, so any can come first.
 | A published release built from the wrong files | releases are built only by the release workflow, from `main`, in the pinned ESP-IDF container; a version is never released twice |
 | Someone installs the other board's firmware | one button per board, with its name and a photo; the packaging script refuses a build packaged as the wrong board; a wrong install leaves the screen dark, and installing the right one fixes it |
 | An AMOLED wears where pixels stay lit (burn-in) | on OLED boards the face drifts slowly (§4.8); dimming when idle comes in M6 |
+| The bot's name, shown all day on an OLED, wears the panel | it drifts with the face and is grey, about a third of white's brightness (§4.3.2); dimming comes in M6 |
+| A bot's name in letters the device's font lacks (accents, other scripts, emoji) | the bridge takes accents off and leaves out the rest; the admin page says how the name shows, or that it can't (§4.3.2) |
 | A board revision that can't be tested here (the AMOLED-1.8's V1) | it is told apart by its touch chip, as in Waveshare's examples, and uses Waveshare's display commands; it is marked untested until someone tries one |

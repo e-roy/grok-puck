@@ -4,7 +4,7 @@ A desk display for Grok Bot: a small touch screen that **is** one of your Grok B
 your desk:
 
 - it shows the bot's avatar (shape and colour as in the Grok Bot app), animated while the bot thinks
-  and works;
+  and works, with the bot's name under it if you turn that on;
 - it **speaks everything the bot writes**, so you can follow it without keeping its window open (or
   plays it in a browser tab on your computer, for headphones: the Listen page);
 - **hold it and speak** to answer, then let go: your words reach the bot as if you had typed them.
