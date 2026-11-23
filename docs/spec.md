@@ -308,7 +308,10 @@ taken elsewhere and brought back without setting it up again.
 - **The bridge address** should be the public one (`wss://desk.example.com/device`), so the device
   reaches its bridge from any network. A home-network address only works at home. Changing the
   address drops the device's key (a key belongs to one bridge); the new bridge asks for approval. A
-  device that was already connected to a bridge restarts to connect to the new one.
+  device that was already connected to a bridge restarts to connect to the new one. The page refuses
+  an address typed after another left in the field (a second `://`, or a second scheme right after
+  the first, like `ws://wss://desk.example.com`) and says why; nothing is saved, so the device keeps
+  its address and its key *(firmware 0.6.4)*.
 - **Updating from older firmware** (0.5 and before kept one network): the first start moves that
   network into the list, so the device stays on its Wi-Fi. Going back to 0.5 or earlier afterwards
   means setting up its Wi-Fi again, since that firmware doesn't read the list.
