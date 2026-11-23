@@ -5,8 +5,8 @@
 //                  what it can do beyond 0.6.0 (features: "speaking", firmware 0.6.1+), and its board
 //                  with that board's hardware (board: "waveshare-amoled-1.8"; features: "touch",
 //                  "microphone", "speaker"; firmware 0.6.2+); "attention": it shows "waiting" with
-//                  the "!" and the hop, and "bot-name": it shows the bot's name under its face when
-//                  config gives one (firmware 0.6.3+)
+//                  the "!" and the hop (firmware 0.6.3+); "bot-name": it shows the bot's name under
+//                  its face when config gives one (firmware 0.6.4+)
 //   listen.start   a hold began: the microphone opened; binary frames (16 kHz PCM) follow
 //   listen.end     the finger lifted: send what was heard          listen.cancel   drop it
 //   played         a clip finished (or was stopped on the device)
@@ -61,7 +61,7 @@ export type PageState = ShownState | 'listening';
 export const FEATURE_SPEAKING = 'speaking';
 /** In a device's hello: it shows "waiting" as attention, with the "!" and the hop (firmware 0.6.3, spec §4.3.1). */
 export const FEATURE_ATTENTION = 'attention';
-/** In a device's hello: it shows the bot's name under its face when config gives one (firmware 0.6.3, spec §4.3.2). */
+/** In a device's hello: it shows the bot's name under its face when config gives one (firmware 0.6.4, spec §4.3.2). */
 export const FEATURE_BOT_NAME = 'bot-name';
 
 export const DEVICE_ID = /^[A-Za-z0-9:_-]{1,64}$/;

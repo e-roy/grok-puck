@@ -377,7 +377,7 @@ function Attention({ device, since, run }: { device: Device; since: string; run:
   );
 }
 
-/** Firmware 0.6.3 and later list this: it shows the bot's name under its face (spec §4.3.2). */
+/** Firmware 0.6.4 and later list this: it shows the bot's name under its face (spec §4.3.2). */
 const BOT_NAME = 'bot-name';
 
 /** What the device shows under its face now, as its config gives it; null for none. */
@@ -392,7 +392,7 @@ function BotNameField({ device, bot, patch }: { device: Device; bot: Bot | undef
   const on = device.showBotName && capable;
   const shown = bot?.shownName ?? '';
   let note: string;
-  if (!capable) note = "Its firmware can't show it: firmware 0.6.3 and later can.";
+  if (!capable) note = "Its firmware can't show it: firmware 0.6.4 and later can.";
   else if (!bot) note = 'It has no bot yet, so there is no name to show.';
   else if (!shown) note = `None of the characters in “${bot.name}” are in the device's font, which has basic Latin letters only, so no name shows.`;
   else {

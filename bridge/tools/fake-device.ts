@@ -2,7 +2,7 @@
 // hardware.
 //
 //   pnpm fake-device [--url ws://127.0.0.1:8787/device] [--id fake-desk-01] [--play]
-//                    [--networks "Home Wi-Fi,Phone hotspot"] [--firmware 0.6.3|0.6.1|0.6.0|0.5] [--old-firmware]
+//                    [--networks "Home Wi-Fi,Phone hotspot"] [--firmware 0.6.4|0.6.3|0.6.1|0.6.0|0.5] [--old-firmware]
 //                    [--board waveshare-amoled-1.8]
 //
 // Then type `talk` (a short tone as the "voice"), `talk some.wav` (16 kHz mono 16-bit WAV), `hold`
@@ -14,8 +14,9 @@
 // --old-firmware) like firmware before 0.6.0, which reports no networks either. --board <id> acts like
 // firmware 0.6.2 on that board: its hello names the board and its hardware (touch, microphone, speaker).
 // --firmware 0.6.3 acts like 0.6.3 (on the LCD-1.46 unless --board says otherwise): it also lists
-// "attention", so it shows "waiting" with the "!" and the hop (spec §4.3.1), and "bot-name": it shows
-// the bot's name its config gives (spec §4.3.2), which it prints.
+// "attention", so it shows "waiting" with the "!" and the hop (spec §4.3.1). --firmware 0.6.4 acts like
+// 0.6.4: it also lists "bot-name", so it shows the bot's name its config gives (spec §4.3.2), which it
+// prints.
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
@@ -62,7 +63,7 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
   readonly board: string | undefined;
   /** It shows "waiting" as attention, as firmware 0.6.3 does (its hello lists "attention"). */
   readonly attention: boolean;
-  /** It shows the bot's name its config gives, as firmware 0.6.3 does (its hello lists "bot-name"). */
+  /** It shows the bot's name its config gives, as firmware 0.6.4 does (its hello lists "bot-name"). */
   readonly botName: boolean;
   /** The bot's name it shows under its face, from its last config ("" for none). */
   shownName = '';
@@ -81,7 +82,7 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
     this.id = options.id;
     this.key = options.key;
     this.attention = options.attention ?? false;
-    this.botName = options.botName ?? this.attention; // both came with 0.6.3; false acts like earlier builds of it
+    this.botName = options.botName ?? this.attention; // 0.6.4 lists both; false acts like 0.6.3, which lists attention only
     this.board = options.board ?? (this.attention ? 'waveshare-lcd-1.46' : undefined); // 0.6.3 always names its board
     this.speaking = this.board !== undefined || (options.speaking ?? false);
     if (options.networks) {
@@ -96,7 +97,9 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
       this.socket = socket;
       socket.once('open', () => {
         const firmware = this.attention
-          ? 'fake-device/0.6.3'
+          ? this.botName
+            ? 'fake-device/0.6.4'
+            : 'fake-device/0.6.3'
           : this.board
             ? 'fake-device/0.6.2'
             : this.speaking
@@ -265,8 +268,8 @@ async function main(): Promise<void> {
     },
   });
   const level = values['old-firmware'] ? '0.5' : values.firmware;
-  if (!['0.5', '0.6.0', '0.6.1', '0.6.3'].includes(level)) {
-    console.error('--firmware is 0.6.1 (the default), 0.6.3, 0.6.0 or 0.5 (--board acts like 0.6.2)');
+  if (!['0.5', '0.6.0', '0.6.1', '0.6.3', '0.6.4'].includes(level)) {
+    console.error('--firmware is 0.6.1 (the default), 0.6.4, 0.6.3, 0.6.0 or 0.5 (--board acts like 0.6.2)');
     process.exit(1);
   }
   const dir = path.resolve(values.dir);
@@ -277,12 +280,13 @@ async function main(): Promise<void> {
   const say = (...parts: unknown[]) => console.log(`[${new Date().toLocaleTimeString()}]`, ...parts);
 
   const networks = level === '0.5' ? undefined : values.networks.split(',').map((n) => n.trim()).filter(Boolean);
-  if (values.board !== undefined && (!['0.6.1', '0.6.3'].includes(level) || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(values.board))) {
-    console.error('--board takes a board id such as waveshare-amoled-1.8, and acts like firmware 0.6.2 (0.6.3 with --firmware 0.6.3; not with 0.6.0 or 0.5)');
+  if (values.board !== undefined && (!['0.6.1', '0.6.3', '0.6.4'].includes(level) || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(values.board))) {
+    console.error('--board takes a board id such as waveshare-amoled-1.8, and acts like firmware 0.6.2 (0.6.3 or 0.6.4 with --firmware; not with 0.6.0 or 0.5)');
     process.exit(1);
   }
-  const attention = level === '0.6.3';
-  const device = new FakeDevice({ url: values.url, id: values.id, key, networks, speaking: level === '0.6.1' || attention, board: values.board, attention });
+  const attention = level === '0.6.3' || level === '0.6.4';
+  const botName = level === '0.6.4';
+  const device = new FakeDevice({ url: values.url, id: values.id, key, networks, speaking: level === '0.6.1' || attention, board: values.board, attention, botName });
   device.realtime = true;
   device.on('pending', () => say(`waiting for approval: approve "${values.id}" in the admin page`));
   device.on('welcome', (newKey) => {

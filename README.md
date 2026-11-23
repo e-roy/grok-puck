@@ -59,9 +59,9 @@ design: [docs/spec.md](docs/spec.md).
 
 | Part | State |
 |---|---|
-| [Bridge](bridge/) (TypeScript server + admin page) | working, with tests and a fake device / fake Grok Bot; its Listen page plays the bot's speech in a browser tab |
-| [Firmware](firmware/) (ESP-IDF, Waveshare ESP32-S3-Touch-LCD-1.46 and ESP32-S3-Touch-AMOLED-1.8) | working: Wi-Fi setup from a phone with up to 5 saved networks (for travelling), approval, avatar and states, spoken replies, hold to talk |
-| [Installer](installer/) (web page on GitHub Pages) and [releases](https://github.com/e-roy/grok-puck/releases) | released: v0.6.0 on 13 Nov 2026. Installs the firmware from the browser, keeping the device's settings |
+| [Bridge](bridge/) (TypeScript server + admin page) | working, with tests and a fake device / fake Grok Bot; its Listen page plays the bot's speech in a browser tab, and its History shows what the bot called in each turn, checked against its standing instructions |
+| [Firmware](firmware/) (ESP-IDF, Waveshare ESP32-S3-Touch-LCD-1.46 and ESP32-S3-Touch-AMOLED-1.8) | working on both boards: Wi-Fi setup from a phone with up to 5 saved networks (for travelling), approval, avatar and states (with attention when the bot waits for you), spoken replies, hold to talk. `main` is 0.6.4, not released yet: it adds the bot's name under the face |
+| [Installer](installer/) (web page on GitHub Pages) and [releases](https://github.com/e-roy/grok-puck/releases) | released: the latest is v0.6.3, on 22 Nov 2026. Installs the firmware from the browser, keeping the device's settings |
 | Grok Bot setup | working: MCP server, standing instructions and voice routine. Some checks still to run: [docs/grok-bot-setup.md](docs/grok-bot-setup.md) |
 | [Case and stand](hardware/) (3D prints, for the LCD-1.46) | printed and fitting: the case, its button plungers and the 15° stand, as [ready-to-print files](hardware/waveshare-lcd-1.46/README.md#prints) |
 
