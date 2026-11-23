@@ -31,9 +31,11 @@ const MIN_UTTERANCE_BYTES = 3200; // 100 ms
 
 /**
  * played: it played to the end somewhere · stopped: the owner stopped it (or every place it played
- * on dropped out) · offline: there was nowhere to play it · muted · failed: its audio couldn't be made.
+ * on dropped out) · dropped: the owner held the device to talk before its turn came (or while it
+ * came), so it never plays · offline: there was nowhere to play it · muted · failed: its audio
+ * couldn't be made.
  */
-export type PlayResult = 'played' | 'stopped' | 'offline' | 'muted' | 'failed';
+export type PlayResult = 'played' | 'stopped' | 'dropped' | 'offline' | 'muted' | 'failed';
 
 /** Where a clip plays: on the device, on its Listen page, or on both. */
 export type Place = 'device' | 'page' | 'both';
@@ -68,10 +70,17 @@ interface Turn {
   stopped: boolean; // the owner stopped it: on the device, on a Listen page, or by muting
 }
 
+/** A clip waiting for its turn. A hold drops it: when its turn comes, it ends without playing. */
+interface Waiting {
+  kind: 'speech' | 'tone';
+  dropped: boolean;
+}
+
 /** A device's speech, wherever it plays: one clip at a time, in order. */
 interface Speaker {
   queue: Promise<unknown>;
   queued: number;
+  waiting: Set<Waiting>; // queued behind the clip playing, not started yet
   turn: Turn | undefined;
   onPage: boolean; // the clip playing (or the last one, until nothing is queued) plays on a Listen page
 }
@@ -297,20 +306,34 @@ export class DeviceHub {
     this.sendShown(id);
   }
 
-  /** Plays a clip after whatever is already playing for that device, where `route()` says when its turn comes. */
+  /** The owner holds this device to talk: nothing plays for it until they let go (spec §4.4). */
+  held(id: string): boolean {
+    return this.isListening(id);
+  }
+
+  /**
+   * Plays a clip after whatever is already playing for that device, where `route()` says when its
+   * turn comes. A clip that comes while the owner holds the device is dropped (spec §4.4).
+   */
   play(id: string, clip: Clip, kind: 'speech' | 'tone', planned: Place | null = this.route(id), hooks: PlayHooks = {}): Promise<PlayResult> {
     if (!this.store.device(id)) return Promise.resolve('offline');
     if (this.store.device(id)?.muted) return Promise.resolve('muted');
+    if (this.held(id)) return Promise.resolve('dropped');
     if (!planned) return Promise.resolve('offline');
     let speaker = this.speakers.get(id);
     if (!speaker) {
-      speaker = { queue: Promise.resolve(), queued: 0, turn: undefined, onPage: false };
+      speaker = { queue: Promise.resolve(), queued: 0, waiting: new Set(), turn: undefined, onPage: false };
       this.speakers.set(id, speaker);
     }
     const mine = speaker;
+    const waiting: Waiting = { kind, dropped: false };
     mine.queued++;
+    mine.waiting.add(waiting);
     const result = mine.queue
-      .then(() => this.playTurn(id, mine, clip, kind, planned, hooks))
+      .then((): PlayResult | Promise<PlayResult> => {
+        mine.waiting.delete(waiting);
+        return waiting.dropped ? 'dropped' : this.playTurn(id, mine, clip, kind, planned, hooks);
+      })
       .catch((err: unknown): PlayResult => {
         this.log.warn({ err, device: id }, 'playback failed');
         return 'failed';
@@ -431,8 +454,10 @@ export class DeviceHub {
     }
     switch (message.type) {
       case 'listen.start':
-        // Holding the screen stops speech wherever it plays; the device has stopped its own already.
+        // Holding the screen stops speech wherever it plays (the device has stopped its own already),
+        // and drops what is queued behind it: the owner is interrupting (spec §4.4).
         this.stopTurn(link.deviceId, link.socket);
+        this.dropQueued(link.deviceId);
         link.listening = [];
         link.listenBytes = 0;
         this.sendPageShown(link.deviceId); // the pages show "listening"; the device shows it already
@@ -604,6 +629,25 @@ export class DeviceHub {
       out.abort.abort();
       out.done();
     }
+  }
+
+  /**
+   * A hold: every clip queued for this device, wherever it would play, ends without playing when its
+   * turn comes. Their text stays in History, and a line there says how many weren't spoken.
+   */
+  private dropQueued(id: string): void {
+    const waiting = [...(this.speakers.get(id)?.waiting ?? [])].filter((w) => !w.dropped);
+    for (const w of waiting) w.dropped = true;
+    const speech = waiting.filter((w) => w.kind === 'speech').length;
+    const device = this.store.device(id);
+    if (!speech || !device) return;
+    this.store.addHistory({
+      kind: 'say',
+      ok: true,
+      deviceId: id,
+      botId: device.botId || undefined,
+      detail: `${speech} queued ${speech === 1 ? 'clip' : 'clips'} dropped, not spoken: the owner held ${device.name} to talk.`,
+    });
   }
 
   /** A place answered `played` for a clip it was sent. */

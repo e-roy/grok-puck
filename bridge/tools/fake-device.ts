@@ -40,6 +40,7 @@ export interface FakeDeviceEvents {
   welcome: [key: string];
   config: [config: DeviceConfig];
   show: [state: ShownState];
+  start: [id: string];
   played: [played: Played];
   stopped: [];
   'forget-wifi': [];
@@ -130,8 +131,9 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
     this.endListening();
   }
 
-  /** A hold began: listen.start (the firmware sends it once a touch counts as a hold). */
+  /** A hold began: listen.start (the firmware sends it once a touch counts as a hold, and stops its own speech). */
   startListening(): void {
+    this.playing = undefined;
     this.send({ type: 'listen.start', sample_rate: MIC_RATE });
   }
 
@@ -197,6 +199,7 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
         break;
       case 'play.start':
         this.playing = { id: message.id, kind: message.kind, sampleRate: message.sample_rate, started: Date.now(), chunks: [] };
+        this.emit('start', message.id);
         break;
       case 'play.end':
         this.finishPlaying(message.id);

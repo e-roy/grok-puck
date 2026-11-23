@@ -257,11 +257,17 @@ is no countdown and no silence timeout.
 |---|---|---|
 | idle / dimmed | listen while held, send on letting go | wake; a small poke reaction |
 | thinking / working / waiting | listen (a follow-up message; it ends attention, §4.3.1) | small wiggle (attention stays) |
-| speaking (here, or on a Listen page) | stop speaking and listen | stop speaking, wherever it plays |
+| speaking (here, or on a Listen page) | stop speaking, drop what is queued, and listen | stop speaking, wherever it plays |
 
 - A press counts as a hold after **0.3 s**; a shorter touch is a tap. Recording starts at the touch
   itself, so a first word spoken while the hold is being counted isn't cut off; a tap sends nothing.
 - Letting go with less than about **0.3 s of voice** sends nothing (an accidental touch).
+- **A hold interrupts** *(agreed 22 Nov 2026)*: besides the clip playing, every clip queued for the
+  device is dropped, wherever it would play (the device or its Listen pages), and none of it plays
+  later; a clip that comes while the device is held isn't played either (the bot's answer says so).
+  The text stays in the Grok Bot app and in History, which says how many queued clips were dropped.
+  What comes after letting go plays as usual. The offline queue (§5.7) isn't touched: it only
+  holds speech while the device can't play. A tap stops only the clip playing.
 - A hold that reaches the **longest message** (60 s by default, set in the admin page) ends and sends.
 - Mute is a switch in the admin page.
 - If no STT is configured, a hold only plays the poke reaction.
@@ -695,8 +701,9 @@ Its endpoints aren't OpenAI's, so it is a service type of its own (`xai`, next t
   that bot.
 - Each device's **Speak on** setting says where its speech plays: on the device, on a Listen page,
   or both (§5.10, with its table). Clips play one at a time per device, in order, wherever they play.
+  Holding the device to talk drops the clips queued for it (§4.4).
 - Device offline: spoken messages wait in a small queue *(proposal: 5 per device)*, unless a Listen
-  page plays them (§5.10); states are not queued.
+  page plays them (§5.10); states are not queued. A hold doesn't touch this queue.
 - No reply within 3 minutes of a voice message: error state and a short tone. A late reply is still spoken.
 - A status the bot never ended ("thinking", "working") goes back to idle after 10 minutes. "Waiting"
   doesn't expire: it stays until the owner's next message (§4.3.1).
@@ -894,8 +901,9 @@ is also the way to hear them on headphones.
 - **The bot's name** (§4.3.2): while the device shows it, the page's avatar shows it too, where the
   device does; the page's heading has the name as typed.
 - **Stopping:** a tap on the device, or holding it to talk, stops speech wherever it plays. So does
-  the page's Stop button, from any page for that device. Stop listening stops speech only in its own
-  tab, as it takes the page out (above).
+  the page's Stop button, from any page for that device. A hold also drops the clips queued behind
+  it, the page's too (§4.4). Stop listening stops speech only in its own tab, as it takes the page out
+  (above).
 - **Mute** silences speech everywhere, and switching it on ends the clip playing. The device's volume
   slider sets the device only; the page uses the computer's volume.
 - **Device offline:** with Speak on set to the Listen page (or both), the page still plays while the
@@ -930,7 +938,8 @@ order with their times, checked against what the instructions ask (`docs/grok-bo
   bot, or the default bot);
 - calls the bridge refused or that failed, with the bridge's answer;
 - its speech: where it played, when it started (its first audio going out, so the speech service's
-  own delay counts), how long it played, and whether it played to the end or was stopped;
+  own delay counts), how long it played, and whether it played to the end, was stopped, or was
+  dropped by a hold to talk (§4.4);
 - attention starting or ending (§4.3.1).
 
 No text is kept, only lengths. The admin page shows a reply's text from the History entry it links
