@@ -1,5 +1,10 @@
 # Grok Puck
 
+[![CI](https://github.com/e-roy/grok-puck/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/e-roy/grok-puck/actions/workflows/ci.yml?query=branch%3Amain)
+[![Latest release](https://img.shields.io/github/v/release/e-roy/grok-puck)](https://github.com/e-roy/grok-puck/releases/latest)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+[![Install from your browser](https://img.shields.io/badge/install-from_your_browser-2ea44f)](https://e-roy.github.io/grok-puck/)
+
 A desk display for Grok Bot: a small touch screen that **is** one of your Grok Bots, sitting on
 your desk:
 
@@ -21,6 +26,20 @@ Grok Bot is the only "brain": there is no separate voice model or AI API to pay 
 text-to-speech come from any OpenAI-compatible service, including a self-hosted one.
 
 An unofficial hobby project, not affiliated with or endorsed by xAI.
+
+## Try it
+
+1. **Get a board**: the round [ESP32-S3-Touch-LCD-1.46](hardware/waveshare-lcd-1.46/), with a printed
+   case and stand, or the [ESP32-S3-Touch-AMOLED-1.8](hardware/waveshare-amoled-1.8/) in its own
+   case. Each one's folder lists its parts and where to buy them.
+2. **Install the firmware from your browser** with the [web installer](https://e-roy.github.io/grok-puck/):
+   Chrome, Edge or Firefox on a computer and a USB-C cable, no ESP-IDF needed.
+3. **Run the bridge and connect Grok Bot**: the bridge runs in Docker on an always-on machine, and
+   [the setup guide](docs/setup.md) takes you through it, then through the speech services, the
+   device and Grok Bot.
+
+No hardware yet? The bridge comes with a fake device and a fake Grok Bot, so you can
+[try the whole loop on your computer](bridge/README.md#try-the-whole-loop-without-hardware-or-grok-bot).
 
 ## How it works
 
