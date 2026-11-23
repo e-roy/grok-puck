@@ -51,6 +51,7 @@ version of each component in `dependencies.lock`.
 | ↳ printf, in LVGL | | MIT | Marco Paland (PALANDesign Hannover) | both |
 | ↳ Montserrat font (LVGL's Montserrat 14 and 24) | | OFL-1.1 | The Montserrat Project Authors | both |
 | ↳ Font Awesome 5 Free symbols, in the same LVGL fonts | | OFL-1.1 | Fonticons, Inc. | both |
+| Montserrat Bold, 24 px, for the bot's name (`firmware/main/fonts/`, made from Montserrat 7.222 with lv_font_conv 1.5.3) | 7.222 | OFL-1.1 | The Montserrat Project Authors | both |
 | cJSON (`espressif/cjson`) | 1.7.19~2 | MIT | Dave Gamble and cJSON contributors | both |
 | `espressif/esp_websocket_client` | 1.8.0 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | both |
 | `espressif/esp_lvgl_port` | 2.9.0 | Apache-2.0 | Espressif Systems (Shanghai) CO LTD | both |
@@ -448,6 +449,11 @@ Free. Both are under the SIL Open Font License 1.1, as LVGL ships them:
 [licenses/Montserrat-OFL.txt](licenses/Montserrat-OFL.txt) (Copyright 2011 The Montserrat Project
 Authors) and [licenses/FontAwesome5-LICENSE.txt](licenses/FontAwesome5-LICENSE.txt) (Copyright (c)
 2022 Fonticons, Inc., Reserved Font Name "Font Awesome").
+
+The bot's name is drawn with a font made from Montserrat Bold (release 7.222 of the Montserrat
+project), its printable ASCII characters only ([main/fonts/](main/fonts/) says how). It is under the
+same licence, [licenses/Montserrat-OFL.txt](licenses/Montserrat-OFL.txt) (Copyright 2011 The
+Montserrat Project Authors, no Reserved Font Name).
 
 ### cJSON (MIT)
 

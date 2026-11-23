@@ -23,6 +23,7 @@ typedef struct {
     int volume;       // 0..100
     bool muted;
     int max_listen_ms;
+    char bot_name[101];  // to show under the face (spec §4.3.2), printable ASCII only; "" for none
 } link_config_t;
 
 typedef struct {

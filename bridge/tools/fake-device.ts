@@ -14,7 +14,8 @@
 // --old-firmware) like firmware before 0.6.0, which reports no networks either. --board <id> acts like
 // firmware 0.6.2 on that board: its hello names the board and its hardware (touch, microphone, speaker).
 // --firmware 0.6.3 acts like 0.6.3 (on the LCD-1.46 unless --board says otherwise): it also lists
-// "attention", so it shows "waiting" with the "!" and the hop (spec §4.3.1).
+// "attention", so it shows "waiting" with the "!" and the hop (spec §4.3.1), and "bot-name": it shows
+// the bot's name its config gives (spec §4.3.2), which it prints.
 import { spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
@@ -60,6 +61,10 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
   readonly board: string | undefined;
   /** It shows "waiting" as attention, as firmware 0.6.3 does (its hello lists "attention"). */
   readonly attention: boolean;
+  /** It shows the bot's name its config gives, as firmware 0.6.3 does (its hello lists "bot-name"). */
+  readonly botName: boolean;
+  /** The bot's name it shows under its face, from its last config ("" for none). */
+  shownName = '';
   /** What the bridge last asked it to show. */
   shown: ShownState | undefined;
   /** Every state the bridge asked it to show, including ones its firmware doesn't know. */
@@ -69,12 +74,13 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
   private socket: WebSocket | undefined;
   private playing: { id: string; kind: 'speech' | 'tone'; sampleRate: number; started: number; chunks: Buffer[] } | undefined;
 
-  constructor(options: { url: string; id: string; key?: string; networks?: string[]; speaking?: boolean; board?: string; attention?: boolean }) {
+  constructor(options: { url: string; id: string; key?: string; networks?: string[]; speaking?: boolean; board?: string; attention?: boolean; botName?: boolean }) {
     super();
     this.url = options.url;
     this.id = options.id;
     this.key = options.key;
     this.attention = options.attention ?? false;
+    this.botName = options.botName ?? this.attention; // both came with 0.6.3; false acts like earlier builds of it
     this.board = options.board ?? (this.attention ? 'waveshare-lcd-1.46' : undefined); // 0.6.3 always names its board
     this.speaking = this.board !== undefined || (options.speaking ?? false);
     if (options.networks) {
@@ -99,6 +105,7 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
                 : 'fake-device/0.5';
         const features = this.board ? ['speaking', 'touch', 'microphone', 'speaker'] : ['speaking'];
         if (this.attention) features.push('attention');
+        if (this.botName) features.push('bot-name');
         this.send({
           type: 'hello',
           device_id: this.id,
@@ -178,6 +185,7 @@ export class FakeDevice extends EventEmitter<FakeDeviceEvents> {
         this.emit('welcome', message.key);
         break;
       case 'config':
+        if (this.botName) this.shownName = message.botName ?? ''; // older firmware ignores it
         this.emit('config', message);
         break;
       case 'show':
@@ -278,7 +286,10 @@ async function main(): Promise<void> {
     fs.writeFileSync(keyFile, newKey);
     say('approved; key saved in', keyFile);
   });
-  device.on('config', (c) => say('config:', JSON.stringify({ name: c.name, bot: c.bot, volume: c.volume, muted: c.muted })));
+  device.on('config', (c) => {
+    say('config:', JSON.stringify({ name: c.name, bot: c.bot, volume: c.volume, muted: c.muted }));
+    if (device.botName) say(device.shownName ? `shows the bot's name under its face: ${device.shownName}` : "shows no bot's name");
+  });
   device.on('show', (state) => say('shows', state));
   device.on('bridge-error', (message) => say('bridge says:', message));
   device.on('forget-wifi', () => say('asked to forget all its Wi-Fi networks (a real device restarts into setup)'));

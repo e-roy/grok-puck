@@ -33,6 +33,8 @@ typedef enum {
 
 void face_create(lv_obj_t *screen);
 void face_set_avatar(face_shape_t shape, uint32_t rgb);
+// The bot's name under the face (spec §4.3.2), in printable ASCII; "" shows none.
+void face_set_name(const char *text);
 void face_set_state(face_state_t state);
 face_state_t face_get_state(void);  // safe from any task
 // Microphone or speaker level, 0..1. Safe from any task.

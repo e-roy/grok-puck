@@ -47,6 +47,7 @@ export interface Device {
   volume: number; // 0..100
   muted: boolean; // no speech or tones anywhere, Listen pages included
   speakOn: SpeakOn; // with 'page' and no Listen page ready, the device speaks
+  showBotName: boolean; // its bot's name under its face, for firmware that lists "bot-name" (spec §4.3.2)
   timings: Timings;
   firmware: string;
   features: string[]; // what its firmware can do beyond 0.6.0, from its hello ("speaking": firmware 0.6.1), and from 0.6.2 its board's hardware
@@ -182,6 +183,7 @@ function load(file: string): State {
     devices: (saved.devices ?? []).map((d) => ({
       ...d,
       speakOn: SPEAK_ON.includes(d.speakOn) ? d.speakOn : 'device',
+      showBotName: d.showBotName === true, // off for data files from before the option
       features: Array.isArray(d.features) ? d.features : [],
       board: typeof d.board === 'string' ? d.board : '',
       attention: typeof d.attention === 'string' ? d.attention : undefined, // undefined isn't written back

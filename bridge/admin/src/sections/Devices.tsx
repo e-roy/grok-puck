@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Field, FieldContent, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -28,6 +28,7 @@ import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { boardBadge } from '@/lib/board.ts';
+import { cutName, namePlace } from '@/lib/botname.ts';
 import { firmwareVersion } from '@/lib/firmware.ts';
 import { ago, clock, enc } from '@/lib/format.ts';
 import { pushList, readList } from '@/lib/local.ts';
@@ -207,6 +208,8 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
           avatar={bot?.avatar ?? GREY}
           size={64}
           state={avatarState(device.showing, online, device.speaking !== null, device.features.includes('attention'))}
+          name={shownOnDevice(device, bot)}
+          board={device.board}
         />
         <div className="min-w-0 flex-1">
           <CardTitle className="flex flex-wrap items-center gap-2">
@@ -305,6 +308,7 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
             </InputGroup>
             <FieldDescription>Hold the screen to talk and let go to send. Listening also ends here (5–120 s).</FieldDescription>
           </Field>
+          <BotNameField device={device} bot={bot} patch={patch} />
         </FieldGroup>
 
         <Separator />
@@ -368,6 +372,50 @@ function Attention({ device, since, run }: { device: Device; since: string; run:
         Clear
       </Button>
     </p>
+  );
+}
+
+/** Firmware 0.6.3 and later list this: it shows the bot's name under its face (spec §4.3.2). */
+const BOT_NAME = 'bot-name';
+
+/** What the device shows under its face now, as its config gives it; null for none. */
+function shownOnDevice(device: Device, bot: Bot | undefined): string | null {
+  return device.showBotName && device.features.includes(BOT_NAME) && bot?.shownName ? bot.shownName : null;
+}
+
+/** "Show the bot's name": the switch, and what the device shows (in full), how it differs, or why it can't. */
+function BotNameField({ device, bot, patch }: { device: Device; bot: Bot | undefined; patch: (body: object, success?: string) => Promise<boolean> }) {
+  const id = `${device.id}-bot-name`;
+  const capable = device.features.includes(BOT_NAME);
+  const on = device.showBotName && capable;
+  const shown = bot?.shownName ?? '';
+  let note: string;
+  if (!capable) note = "Its firmware can't show it: firmware 0.6.3 and later can.";
+  else if (!bot) note = 'It has no bot yet, so there is no name to show.';
+  else if (!shown) note = `None of the characters in “${bot.name}” are in the device's font, which has basic Latin letters only, so no name shows.`;
+  else {
+    const typed = bot.name.trim().replace(/\s+/g, ' ');
+    const cut = cutName(shown, namePlace(device.board, bot.avatar.shape).width);
+    note = on ? `Under its face: “${shown}”.` : `Shows “${shown}” under its face.`;
+    if (shown !== typed) note += ` Its font has basic Latin letters only, so accents come off and other characters are left out of “${typed}”.`;
+    if (cut !== shown) note += ` The device cuts it to fit its line: “${cut}”.`;
+  }
+  return (
+    <Field orientation="horizontal" className="sm:col-span-2">
+      <Switch
+        id={id}
+        checked={on}
+        disabled={!capable}
+        aria-describedby={`${id}-note`}
+        onCheckedChange={(show) =>
+          void patch({ showBotName: show }, show ? `${device.name} shows the bot's name.` : `${device.name} no longer shows the bot's name.`)
+        }
+      />
+      <FieldContent>
+        <FieldLabel htmlFor={id}>Show the bot&apos;s name</FieldLabel>
+        <FieldDescription id={`${id}-note`}>{note}</FieldDescription>
+      </FieldContent>
+    </Field>
   );
 }
 

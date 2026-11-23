@@ -81,8 +81,10 @@ static void send_hello(void) {
     // listed isn't there. A bridge that doesn't know a name ignores it.
     cJSON *features = cJSON_AddArrayToObject(m, "features");
     cJSON_AddItemToArray(features, cJSON_CreateString("speaking"));
-    // From 0.6.3: "waiting" shows as attention, with the "!" and the hop (spec §4.3.1).
+    // From 0.6.3: "waiting" shows as attention, with the "!" and the hop (spec §4.3.1), and the bot's
+    // name shows under the face when config gives one (spec §4.3.2).
     cJSON_AddItemToArray(features, cJSON_CreateString("attention"));
+    cJSON_AddItemToArray(features, cJSON_CreateString("bot-name"));
     if (BOARD_HAS_TOUCH) cJSON_AddItemToArray(features, cJSON_CreateString("touch"));
     if (BOARD_HAS_MICROPHONE) cJSON_AddItemToArray(features, cJSON_CreateString("microphone"));
     if (BOARD_HAS_SPEAKER) cJSON_AddItemToArray(features, cJSON_CreateString("speaker"));
@@ -144,6 +146,14 @@ static void read_config(const cJSON *m) {
     const cJSON *timings = cJSON_GetObjectItemCaseSensitive(m, "timings");
     const cJSON *max_listen = cJSON_GetObjectItemCaseSensitive(timings, "maxListenMs");
     if (cJSON_IsNumber(max_listen)) c.max_listen_ms = max_listen->valueint;
+    // The bot's name to show under the face, sent only while the admin page shows it (spec §4.3.2).
+    // The bridge sends printable ASCII, which is all the fonts have; anything else is dropped, so a
+    // missing letter never shows as a box.
+    size_t n = 0;
+    for (const char *p = string_of(m, "botName"); *p && n < sizeof(c.bot_name) - 1; p++) {
+        if (*p >= 0x20 && *p <= 0x7e) c.bot_name[n++] = *p;
+    }
+    c.bot_name[n] = '\0';
     const cJSON *bot = cJSON_GetObjectItemCaseSensitive(m, "bot");
     const cJSON *avatar = cJSON_GetObjectItemCaseSensitive(bot, "avatar");
     const char *color = string_of(avatar, "color");

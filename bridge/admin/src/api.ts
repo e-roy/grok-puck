@@ -30,6 +30,7 @@ export interface Device {
   volume: number;
   muted: boolean;
   speakOn: SpeakOn;
+  showBotName: boolean; // its bot's name under its face, for firmware that lists "bot-name" (spec §4.3.2)
   timings: Timings;
   firmware: string;
   features: string[]; // what its firmware can do beyond 0.6.0 ("speaking": firmware 0.6.1), and its board's hardware (0.6.2)
@@ -54,6 +55,7 @@ export interface Bot {
   avatar: Avatar;
   voice: string;
   sendRecent: boolean;
+  shownName: string; // its name as a desk shows it: only the letters the device's font has; "" for none
 }
 
 export interface Service {

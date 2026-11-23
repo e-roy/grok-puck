@@ -16,7 +16,9 @@ and its reasons are in [docs/spec.md](docs/spec.md).
   [installer/README.md](installer/README.md). Releases come only from the "Release firmware" workflow
   (`.github/workflows/release.yml`, run by hand on main), never from a local build.
 - `scripts/check-private.mjs`: the privacy check (run by `.githooks/pre-commit` and `pre-push`).
-- `hardware/`: BOM, case and stand (STL + parametric OpenSCAD sources).
+- `hardware/`: one folder per device, named like its firmware board (`hardware/<board>/`, as
+  `firmware/boards/<id>`): its `README.md` (BOM, what to print and how, assembly), `print/` (the STL
+  files), `source/` (the parametric OpenSCAD sources) and `images/` (its photos).
 - `docs/`: the spec and setup guides.
 
 ## Rules

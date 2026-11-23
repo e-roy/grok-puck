@@ -169,6 +169,7 @@ void settings_load(settings_t *out) {
     uint8_t muted = 0;
     nvs_get_u8(h, "muted", &muted);
     out->muted = muted;
+    get_str(h, "bot_name", out->bot_name, sizeof(out->bot_name));  // none before firmware 0.6.3
     nvs_close(h);
 }
 
@@ -182,7 +183,7 @@ esp_err_t settings_save_key(const char *key) {
     return err;
 }
 
-esp_err_t settings_save_look(uint8_t shape, uint32_t color, uint8_t volume, bool muted) {
+esp_err_t settings_save_look(uint8_t shape, uint32_t color, uint8_t volume, bool muted, const char *bot_name) {
     nvs_handle_t h;
     esp_err_t err = nvs_open(NS, NVS_READWRITE, &h);
     if (err != ESP_OK) return err;
@@ -190,6 +191,7 @@ esp_err_t settings_save_look(uint8_t shape, uint32_t color, uint8_t volume, bool
     if (err == ESP_OK) err = nvs_set_u32(h, "color", color);
     if (err == ESP_OK) err = nvs_set_u8(h, "volume", volume);
     if (err == ESP_OK) err = nvs_set_u8(h, "muted", muted ? 1 : 0);
+    if (err == ESP_OK) err = set_str(h, "bot_name", bot_name);
     if (err == ESP_OK) err = nvs_commit(h);
     nvs_close(h);
     return err;

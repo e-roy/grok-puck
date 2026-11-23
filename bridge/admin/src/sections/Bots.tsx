@@ -171,10 +171,21 @@ function NewBot({ run }: { run: Run }) {
   );
 }
 
-type Form = Omit<Bot, 'id' | 'webhookKeySet'>;
+/**
+ * How a desk shows the saved name under its face when it shows it (spec §4.3.2), when that differs
+ * from the name as typed; "" when it doesn't.
+ */
+function onDesk(bot: Bot): string {
+  const typed = bot.name.trim().replace(/\s+/g, ' ');
+  if (bot.shownName === typed) return '';
+  if (!bot.shownName) return "On a desk: no name, as none of its characters are in the device's font (basic Latin letters only).";
+  return `On a desk: “${bot.shownName}”, as the device's font has basic Latin letters only.`;
+}
+
+type Form = Omit<Bot, 'id' | 'webhookKeySet' | 'shownName'>;
 
 function fromBot(bot: Bot): Form {
-  const { id: _id, webhookKeySet: _set, ...rest } = bot;
+  const { id: _id, webhookKeySet: _set, shownName: _shown, ...rest } = bot; // shownName: the bridge works it out
   return { ...rest, webhookKey: '' };
 }
 
@@ -208,7 +219,13 @@ function BotCard({ bot, shapes, voices, run }: { bot: Bot; shapes: Shape[]; voic
       <CardContent className="flex flex-col gap-6">
         <Field>
           <FieldLabel htmlFor={id('name')}>Name in the Grok Bot app</FieldLabel>
-          <Input id={id('name')} value={form.name} onChange={(e) => set({ name: e.target.value })} />
+          <Input
+            id={id('name')}
+            value={form.name}
+            onChange={(e) => set({ name: e.target.value })}
+            aria-describedby={onDesk(bot) ? id('name-on-desk') : undefined}
+          />
+          {onDesk(bot) && <FieldDescription id={id('name-on-desk')}>{onDesk(bot)}</FieldDescription>}
         </Field>
 
         <FieldSet>

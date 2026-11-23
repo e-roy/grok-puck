@@ -5,7 +5,8 @@
 //                  what it can do beyond 0.6.0 (features: "speaking", firmware 0.6.1+), and its board
 //                  with that board's hardware (board: "waveshare-amoled-1.8"; features: "touch",
 //                  "microphone", "speaker"; firmware 0.6.2+); "attention": it shows "waiting" with
-//                  the "!" and the hop (firmware 0.6.3+)
+//                  the "!" and the hop, and "bot-name": it shows the bot's name under its face when
+//                  config gives one (firmware 0.6.3+)
 //   listen.start   a hold began: the microphone opened; binary frames (16 kHz PCM) follow
 //   listen.end     the finger lifted: send what was heard          listen.cancel   drop it
 //   played         a clip finished (or was stopped on the device)
@@ -17,7 +18,9 @@
 // Bridge → device
 //   pending        known, waiting for approval in the admin page
 //   welcome        approved: the device key to store and send in every later hello
-//   config         name, bot avatar, volume, mute, longest message
+//   config         name, bot avatar, volume, mute, longest message; botName: the bot's name in the
+//                  characters the device can show, while its Show the bot's name is on (only to
+//                  devices whose hello lists "bot-name")
 //   show           the state to display (idle, thinking, working, waiting, error), and "speaking"
 //                  while a Listen page plays its speech (only to devices whose hello lists "speaking").
 //                  "waiting": the bot waits for the owner; firmware 0.6.3 shows it as attention
@@ -58,6 +61,8 @@ export type PageState = ShownState | 'listening';
 export const FEATURE_SPEAKING = 'speaking';
 /** In a device's hello: it shows "waiting" as attention, with the "!" and the hop (firmware 0.6.3, spec §4.3.1). */
 export const FEATURE_ATTENTION = 'attention';
+/** In a device's hello: it shows the bot's name under its face when config gives one (firmware 0.6.3, spec §4.3.2). */
+export const FEATURE_BOT_NAME = 'bot-name';
 
 export const DEVICE_ID = /^[A-Za-z0-9:_-]{1,64}$/;
 /** A board's id, as the firmware names it: "waveshare-amoled-1.8". */
@@ -109,6 +114,8 @@ export interface DeviceConfig {
   volume: number;
   muted: boolean;
   timings: Timings;
+  /** What it shows under its face (spec §4.3.2): only while Show the bot's name is on, to firmware that can. */
+  botName?: string;
 }
 
 export type BridgeMessage =
@@ -147,6 +154,8 @@ export interface PageDevice {
   muted: boolean;
   speak_on: SpeakOn;
   page_ready: boolean; // a Listen page (this one or another) is ready to play its speech
+  board: string; // the board it runs on (firmware 0.6.2+), "" from older firmware: where it shows the bot's name
+  shown_name: string | null; // the bot's name as the device shows it under its face (spec §4.3.2); null: none
 }
 
 /** off: not started yet · here: it plays this device's speech · elsewhere: a page started later does. */
