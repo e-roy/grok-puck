@@ -2,6 +2,7 @@
 // with its look and state (and, while its bot waits for the owner, since when, with Clear), its
 // firmware version, its settings (Speak on among them, with its Listen page), "Try it", its Wi-Fi,
 // and (set apart) Forget all networks and Forget.
+import { Field as BaseField } from '@base-ui/react/field';
 import { BellRingIcon, EllipsisVerticalIcon, ExternalLinkIcon, SendIcon, TabletSmartphoneIcon } from 'lucide-react';
 import { useState } from 'react';
 import { api, type Bot, type Device, type SpeakOn } from '@/api.ts';
@@ -265,13 +266,14 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
             <FieldLabel htmlFor={id('bot')}>Bot</FieldLabel>
             <BotSelect id={id('bot')} value={device.botId} bots={bots} onChange={(botId) => void patch({ botId }, 'Bot chosen.')} />
           </Field>
-          <Field>
+          {/* Base UI's own field parts, drawn as ours: its label gets `for` the slider's range input
+              (an id the slider makes itself), and the input is labelled by it. */}
+          <BaseField.Root render={<Field />}>
             <div className="flex items-center justify-between">
-              <FieldLabel id={id('volume-label')}>Volume on the device</FieldLabel>
+              <BaseField.Label render={<FieldLabel />}>Volume on the device</BaseField.Label>
               <span className="text-sm text-muted-foreground tabular-nums">{volume}</span>
             </div>
             <Slider
-              aria-labelledby={id('volume-label')}
               value={[volume]} // a list: shadcn's slider draws one thumb per value
               min={0}
               max={100}
@@ -283,7 +285,7 @@ function DeviceCard({ device, bots, states, run }: { device: Device; bots: Bot[]
               }}
               className="py-2"
             />
-          </Field>
+          </BaseField.Root>
           <Field orientation="horizontal" className="self-end">
             <Switch
               id={id('muted')}
