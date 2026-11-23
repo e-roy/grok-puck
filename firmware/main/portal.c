@@ -153,7 +153,24 @@ static void trim(char *s) {
     while (n > 0 && (s[n - 1] == ' ' || s[n - 1] == '\t')) s[--n] = '\0';
 }
 
-bool portal_bridge_url(const char *typed, char *out, size_t size) {
+static const char URL_BAD[] = "The bridge address doesn't look right. Example: desk.example.com or 192.168.1.20:8787.";
+static const char URL_TWICE[] =
+    "That address has a second \"ws://\" or \"wss://\" in it, as when part of the old address is left in the field "
+    "and a new one typed after it. Clear the field, then type the address once, like desk.example.com or "
+    "192.168.1.20:8787.";
+
+// A scheme and its colon at the start of `s` ("wss:", "ws:", "https:", "http:"), not followed by a
+// digit: "ws:8787" is a machine named "ws" and its port.
+static bool starts_with_scheme(const char *s) {
+    static const char *const NAMES[] = {"wss:", "ws:", "https:", "http:"};
+    for (size_t i = 0; i < sizeof(NAMES) / sizeof(NAMES[0]); i++) {
+        const size_t n = strlen(NAMES[i]);
+        if (strncasecmp(s, NAMES[i], n) == 0 && !isdigit((unsigned char)s[n])) return true;
+    }
+    return false;
+}
+
+const char *portal_bridge_url(const char *typed, char *out, size_t size) {
     char url[192];
     snprintf(url, sizeof(url), "%s", typed);
     trim(url);
@@ -169,7 +186,10 @@ bool portal_bridge_url(const char *typed, char *out, size_t size) {
             break;
         }
     }
-    if (*rest == '\0' || *rest == '/' || strchr(rest, ' ')) return false;
+    // One address typed after another left in the field ("ws://" and then "wss://desk.example.com"):
+    // saved, it would never connect.
+    if (strstr(rest, "://") || (scheme && starts_with_scheme(rest))) return URL_TWICE;
+    if (*rest == '\0' || *rest == '/' || strchr(rest, ' ') || starts_with_scheme(rest)) return URL_BAD;
     const char *slash = strchr(rest, '/');
     const size_t host_len = slash ? (size_t)(slash - rest) : strlen(rest);
     if (!scheme) {
@@ -182,7 +202,7 @@ bool portal_bridge_url(const char *typed, char *out, size_t size) {
     }
     const bool needs_path = !slash || slash[1] == '\0';
     const int n = snprintf(out, size, "%s%.*s%s", scheme, (int)host_len, rest, needs_path ? "/device" : slash);
-    return n > 0 && (size_t)n < size;
+    return n > 0 && (size_t)n < size ? NULL : URL_BAD;
 }
 
 
@@ -477,13 +497,24 @@ static esp_err_t forget_post(httpd_req_t *req) {
     return back_to_page(req);
 }
 
+// A refused address: nothing is saved, so the display keeps the address it had, and its key.
+static esp_err_t refuse_bridge(httpd_req_t *req, const char *problem) {
+    settings_t s;
+    settings_load(&s);
+    const bool had = s.bridge_url[0] != '\0';
+    memset(&s, 0, sizeof(s));  // it holds the device key
+    char text[400];
+    snprintf(text, sizeof(text), "%s %s", problem,
+             had ? "Nothing was saved: the display keeps its old address." : "Nothing was saved.");
+    return problem_page(req, text);
+}
+
 static esp_err_t bridge_post(httpd_req_t *req) {
     net_page_used();
     char body[BODY_SIZE], typed[192], url[192];
-    if (!read_body(req, body, sizeof(body)) || !form_field(body, "bridge", typed, sizeof(typed)) ||
-        !portal_bridge_url(typed, url, sizeof(url))) {
-        return problem_page(req, "The bridge address doesn't look right. Example: desk.example.com or 192.168.1.20:8787");
-    }
+    const bool read = read_body(req, body, sizeof(body)) && form_field(body, "bridge", typed, sizeof(typed));
+    const char *problem = read ? portal_bridge_url(typed, url, sizeof(url)) : URL_BAD;
+    if (problem) return refuse_bridge(req, problem);
     bool changed = false;
     const esp_err_t err = settings_save_bridge(url, &changed);
     if (err != ESP_OK) {

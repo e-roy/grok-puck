@@ -185,7 +185,7 @@ export class Desk {
       // A reply ends "thinking" and "working". "Waiting" stays, since the reply may be the question,
       // unless this reply starts the bot's next turn: then the owner has answered (spec §4.3.1).
       if (this.botStates.get(device.id) !== 'waiting' || call?.started) this.setBotState(device.id, 'idle', call?.turn);
-      if (device.muted) this.showResting(device.id);
+      if (device.muted || this.hub.held(device.id)) this.showResting(device.id);
     }
     const done = (outcome: Outcome, history?: number): Outcome => {
       if (call) this.answer(call.event, outcome, history);
@@ -291,16 +291,19 @@ export class Desk {
 
   /**
    * Speaks on each device where its Speak on setting says (the device, its Listen page or both), and
-   * keeps it for a device with nowhere to speak now. Says where, for the bot and the history.
+   * keeps it for a device with nowhere to speak now. Not on a device the owner holds to talk: that
+   * drops what comes meanwhile (spec §4.4). Says where, for the bot and the history.
    */
   private speak(devices: Device[], bot: Bot | undefined, spoken: string, turn?: TurnRef): string {
     const muted = devices.filter((d) => d.muted);
-    const routed = devices.filter((d) => !d.muted).map((device) => ({ device, place: this.hub.route(device.id) }));
+    const held = devices.filter((d) => !d.muted && this.hub.held(d.id));
+    const routed = devices.filter((d) => !d.muted && !held.includes(d)).map((device) => ({ device, place: this.hub.route(device.id) }));
     const away = routed.filter((r) => r.place === null).map((r) => r.device);
     const playing = routed.filter((r): r is { device: Device; place: Place } => r.place !== null);
     for (const device of away) this.keep(device, spoken, bot);
     if (turn) {
       for (const device of muted) this.turns.speech(turn, device.name, 'muted');
+      for (const device of held) this.turns.speech(turn, device.name, 'dropped');
       for (const device of away) this.turns.speech(turn, device.name, 'kept');
     }
     if (playing.length) {
@@ -332,6 +335,7 @@ export class Desk {
       both.length ? `Speaking on ${names(both)} and ${both.length > 1 ? 'their' : 'its'} Listen page.` : '',
       away.length ? `Saved for ${names(away)} (offline); spoken when ${away.length > 1 ? 'they reconnect' : 'it reconnects'}${later}.` : '',
       muted.length ? `${names(muted)} ${muted.length > 1 ? 'are' : 'is'} muted.` : '',
+      held.length ? `Not spoken on ${names(held)}: the owner is holding ${held.length > 1 ? 'them' : 'it'} to talk.` : '',
     ]
       .filter(Boolean)
       .join(' ');
@@ -506,8 +510,9 @@ export class Desk {
     if (!this.store.device(deviceId)) return;
     this.hub.show(deviceId, 'error');
     void this.hub.play(deviceId, Clip.of(tones(tone), SPEAKER_RATE), 'tone').then((result) => {
-      // A tone's end brings the device back to rest; with no tone (muted, or nowhere to play it), a timer does.
-      if (result === 'muted' || result === 'offline') setTimeout(() => this.showResting(deviceId), 3000).unref();
+      // A tone's end brings the device back to rest; with no tone (muted, held to talk, or nowhere to
+      // play it), a timer does.
+      if (result === 'muted' || result === 'offline' || result === 'dropped') setTimeout(() => this.showResting(deviceId), 3000).unref();
     });
   }
 

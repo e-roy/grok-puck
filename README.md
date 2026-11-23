@@ -1,5 +1,10 @@
 # Grok Puck
 
+[![CI](https://github.com/e-roy/grok-puck/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/e-roy/grok-puck/actions/workflows/ci.yml?query=branch%3Amain)
+[![Latest release](https://img.shields.io/github/v/release/e-roy/grok-puck)](https://github.com/e-roy/grok-puck/releases/latest)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+[![Install from your browser](https://img.shields.io/badge/install-from_your_browser-2ea44f)](https://e-roy.github.io/grok-puck/)
+
 A desk display for Grok Bot: a small touch screen that **is** one of your Grok Bots, sitting on
 your desk:
 
@@ -22,6 +27,20 @@ text-to-speech come from any OpenAI-compatible service, including a self-hosted 
 
 An unofficial hobby project, not affiliated with or endorsed by xAI.
 
+## Try it
+
+1. **Get a board**: the round [ESP32-S3-Touch-LCD-1.46](hardware/waveshare-lcd-1.46/), with a printed
+   case and stand, or the [ESP32-S3-Touch-AMOLED-1.8](hardware/waveshare-amoled-1.8/) in its own
+   case. Each one's folder lists its parts and where to buy them.
+2. **Install the firmware from your browser** with the [web installer](https://e-roy.github.io/grok-puck/):
+   Chrome, Edge or Firefox on a computer and a USB-C cable, no ESP-IDF needed.
+3. **Run the bridge and connect Grok Bot**: the bridge runs in Docker on an always-on machine, and
+   [the setup guide](docs/setup.md) takes you through it, then through the speech services, the
+   device and Grok Bot.
+
+No hardware yet? The bridge comes with a fake device and a fake Grok Bot, so you can
+[try the whole loop on your computer](bridge/README.md#try-the-whole-loop-without-hardware-or-grok-bot).
+
 ## How it works
 
 ```
@@ -40,9 +59,9 @@ design: [docs/spec.md](docs/spec.md).
 
 | Part | State |
 |---|---|
-| [Bridge](bridge/) (TypeScript server + admin page) | working, with tests and a fake device / fake Grok Bot; its Listen page plays the bot's speech in a browser tab |
-| [Firmware](firmware/) (ESP-IDF, Waveshare ESP32-S3-Touch-LCD-1.46 and ESP32-S3-Touch-AMOLED-1.8) | working: Wi-Fi setup from a phone with up to 5 saved networks (for travelling), approval, avatar and states, spoken replies, hold to talk |
-| [Installer](installer/) (web page on GitHub Pages) and [releases](https://github.com/e-roy/grok-puck/releases) | released: v0.6.0 on 13 Nov 2026. Installs the firmware from the browser, keeping the device's settings |
+| [Bridge](bridge/) (TypeScript server + admin page) | working, with tests and a fake device / fake Grok Bot; its Listen page plays the bot's speech in a browser tab, and its History shows what the bot called in each turn, checked against its standing instructions |
+| [Firmware](firmware/) (ESP-IDF, Waveshare ESP32-S3-Touch-LCD-1.46 and ESP32-S3-Touch-AMOLED-1.8) | working on both boards: Wi-Fi setup from a phone with up to 5 saved networks (for travelling), approval, avatar and states (with attention when the bot waits for you), spoken replies, hold to talk. `main` is 0.6.4, not released yet: it adds the bot's name under the face |
+| [Installer](installer/) (web page on GitHub Pages) and [releases](https://github.com/e-roy/grok-puck/releases) | released: the latest is v0.6.3, on 22 Nov 2026. Installs the firmware from the browser, keeping the device's settings |
 | Grok Bot setup | working: MCP server, standing instructions and voice routine. Some checks still to run: [docs/grok-bot-setup.md](docs/grok-bot-setup.md) |
 | [Case and stand](hardware/) (3D prints, for the LCD-1.46) | printed and fitting: the case, its button plungers and the 15° stand, as [ready-to-print files](hardware/waveshare-lcd-1.46/README.md#prints) |
 

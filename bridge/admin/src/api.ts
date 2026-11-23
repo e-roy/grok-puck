@@ -100,7 +100,7 @@ export type TurnEvent =
       history?: number;
     }
   | { ms: number; webhook: 'sent' | 'failed'; request_id: string; chars: number; answer?: string }
-  | { ms: number; speech: 'started' | 'played' | 'stopped' | 'kept' | 'muted' | 'failed' | 'offline'; device: string; place?: string }
+  | { ms: number; speech: 'started' | 'played' | 'stopped' | 'dropped' | 'kept' | 'muted' | 'failed' | 'offline'; device: string; place?: string }
   | { ms: number; attention: 'started' | 'ended'; device: string }
   | { ms: number; no_answer: true };
 

@@ -204,7 +204,8 @@ tests included, uses your Grok Bot plan's usage.
 - **Type** a short question to your bot in the Grok Bot app. The device shows "thinking", then speaks
   the reply.
 - **Hold the screen** and speak, then let go. Your words reach the bot as if you had typed them, and
-  its answer is spoken. A tap while it speaks stops it; holding while it speaks stops it and listens.
+  its answer is spoken. A tap while it speaks stops it; holding while it speaks stops it, drops
+  anything queued after it, and listens.
 - The device's card in the admin page has its volume, mute, and the longest message (60 s by default).
   The admin page's **History** shows every message with how long each part took.
 

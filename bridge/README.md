@@ -51,8 +51,9 @@ nothing else is needed.
    `--old-firmware`) like firmware before 0.6.0, which reports no networks, `--board
    waveshare-amoled-1.8` like firmware 0.6.2 on that board (its card shows the board),
    `--firmware 0.6.3` like firmware 0.6.3, which shows "waiting" as attention (the "!" and the hop
-   in its card's preview) and can show the bot's name (its card's **Show the bot's name**: it prints
-   the name it would show under its face), and typing `signal -70` changes its signal.
+   in its card's preview), `--firmware 0.6.4` like firmware 0.6.4, which can also show the bot's
+   name (its card's **Show the bot's name**: it prints the name it would show under its face), and
+   typing `signal -70` changes its signal.
 5. In the fake device, type `talk`. The fake bot receives the message, shows "working", and answers
    "You said: …", which the fake device plays and saves in `.fake/out/` (add `--play` to hear it through
    ffplay). To hold it as long as you like, type `hold`, then `release` to send or `cancel` to drop it;

@@ -10,7 +10,7 @@ Waveshare ESP32-S3-Touch-AMOLED-1.8 (firmware 0.6.2), now supported. Agreed on 1
 tried on a test bot on 20 Nov 2026: **turn records**, which show what the bot called and check it
 against its standing instructions (§5.11, milestone M11), and **attention**: the device shows
 clearly that the bot waits for you, until your next message (§4.3.1, firmware 0.6.3). Agreed on 22 Nov
-2026: **the bot's name** under the face, an option per device (§4.3.2, firmware 0.6.3). Items marked
+2026: **the bot's name** under the face, an option per device (§4.3.2, firmware 0.6.4). Items marked
 *(proposal)* are suggestions you can change; items marked *(to test)* depend on how Grok Bot actually
 behaves, and get checked at milestone M2.
 
@@ -192,7 +192,7 @@ that coming back to the desk you see that the app is waiting for you.
   0.6.3 on an older bridge shows the new look for "waiting", which that bridge ends after 10 minutes,
   as before.
 
-#### 4.3.2 The bot's name *(agreed 22 Nov 2026, firmware 0.6.3)*
+#### 4.3.2 The bot's name *(agreed 22 Nov 2026, firmware 0.6.4)*
 
 With several bots on one bridge, the desk can say whose it is: **Show the bot's name**, a switch per
 device on its card in the admin page (§5.8), off by default. The name is the bot's name as set in the
@@ -243,11 +243,11 @@ admin page's Bots section, so a rename reaches the desk at once.
   letter widths), in the page's grey (the device's grey is meant for black), and under the body only
   at rest, as on the device. On the card's small preview it only shows where the name sits; the text
   under the switch gives it in full, and the cut when there is one.
-- **Compatibility:** firmware 0.6.3 lists `bot-name` in its hello's `features`. The admin page offers
+- **Compatibility:** firmware 0.6.4 lists `bot-name` in its hello's `features`. The admin page offers
   the switch only to such firmware (for other firmware it is greyed out, with why), and the bridge
   refuses to turn it on for them. The bridge puts the name in `config` (§5.3) only while the switch is
   on and the firmware lists `bot-name`; older firmware ignores fields it doesn't know anyway. Firmware
-  0.6.3 on an older bridge is sent no name, so it shows none.
+  0.6.4 on an older bridge is sent no name, so it shows none.
 
 ### 4.4 Touch
 **Hold to talk** is the only way to speak: letting go when finished is what a person expects. There
@@ -257,11 +257,17 @@ is no countdown and no silence timeout.
 |---|---|---|
 | idle / dimmed | listen while held, send on letting go | wake; a small poke reaction |
 | thinking / working / waiting | listen (a follow-up message; it ends attention, §4.3.1) | small wiggle (attention stays) |
-| speaking (here, or on a Listen page) | stop speaking and listen | stop speaking, wherever it plays |
+| speaking (here, or on a Listen page) | stop speaking, drop what is queued, and listen | stop speaking, wherever it plays |
 
 - A press counts as a hold after **0.3 s**; a shorter touch is a tap. Recording starts at the touch
   itself, so a first word spoken while the hold is being counted isn't cut off; a tap sends nothing.
 - Letting go with less than about **0.3 s of voice** sends nothing (an accidental touch).
+- **A hold interrupts** *(agreed 22 Nov 2026)*: besides the clip playing, every clip queued for the
+  device is dropped, wherever it would play (the device or its Listen pages), and none of it plays
+  later; a clip that comes while the device is held isn't played either (the bot's answer says so).
+  The text stays in the Grok Bot app and in History, which says how many queued clips were dropped.
+  What comes after letting go plays as usual. The offline queue (§5.7) isn't touched: it only
+  holds speech while the device can't play. A tap stops only the clip playing.
 - A hold that reaches the **longest message** (60 s by default, set in the admin page) ends and sends.
 - Mute is a switch in the admin page.
 - If no STT is configured, a hold only plays the poke reaction.
@@ -302,7 +308,10 @@ taken elsewhere and brought back without setting it up again.
 - **The bridge address** should be the public one (`wss://desk.example.com/device`), so the device
   reaches its bridge from any network. A home-network address only works at home. Changing the
   address drops the device's key (a key belongs to one bridge); the new bridge asks for approval. A
-  device that was already connected to a bridge restarts to connect to the new one.
+  device that was already connected to a bridge restarts to connect to the new one. The page refuses
+  an address typed after another left in the field (a second `://`, or a second scheme right after
+  the first, like `ws://wss://desk.example.com`) and says why; nothing is saved, so the device keeps
+  its address and its key *(firmware 0.6.4)*.
 - **Updating from older firmware** (0.5 and before kept one network): the first start moves that
   network into the list, so the device stays on its Wi-Fi. Going back to 0.5 or earlier afterwards
   means setting up its Wi-Fi again, since that firmware doesn't read the list.
@@ -556,8 +565,8 @@ One WebSocket per device: JSON control messages plus binary audio frames.
     show "speaking" without playing audio; from firmware 0.6.2, its board, `"board":
     "waveshare-amoled-1.8"`, and that board's hardware in `features`: `"touch"`, `"microphone"`,
     `"speaker"` (§4.8); from firmware 0.6.3, `"attention"`: it shows "waiting" with the "!" and the
-    hop (§4.3.1), and `"bot-name"`: it shows the bot's name under its face when `config` gives one
-    (§4.3.2). An older bridge ignores these fields; a board that doesn't look like an id is
+    hop (§4.3.1); from firmware 0.6.4, `"bot-name"`: it shows the bot's name under its face when
+    `config` gives one (§4.3.2). An older bridge ignores these fields; a board that doesn't look like an id is
     dropped, never the hello);
   - `listen.start`, then microphone frames (16 kHz PCM), then `listen.end` or `listen.cancel`;
   - `played` (a clip finished or was stopped);
@@ -695,8 +704,9 @@ Its endpoints aren't OpenAI's, so it is a service type of its own (`xai`, next t
   that bot.
 - Each device's **Speak on** setting says where its speech plays: on the device, on a Listen page,
   or both (§5.10, with its table). Clips play one at a time per device, in order, wherever they play.
+  Holding the device to talk drops the clips queued for it (§4.4).
 - Device offline: spoken messages wait in a small queue *(proposal: 5 per device)*, unless a Listen
-  page plays them (§5.10); states are not queued.
+  page plays them (§5.10); states are not queued. A hold doesn't touch this queue.
 - No reply within 3 minutes of a voice message: error state and a short tone. A late reply is still spoken.
 - A status the bot never ended ("thinking", "working") goes back to idle after 10 minutes. "Waiting"
   doesn't expire: it stays until the owner's next message (§4.3.1).
@@ -894,8 +904,9 @@ is also the way to hear them on headphones.
 - **The bot's name** (§4.3.2): while the device shows it, the page's avatar shows it too, where the
   device does; the page's heading has the name as typed.
 - **Stopping:** a tap on the device, or holding it to talk, stops speech wherever it plays. So does
-  the page's Stop button, from any page for that device. Stop listening stops speech only in its own
-  tab, as it takes the page out (above).
+  the page's Stop button, from any page for that device. A hold also drops the clips queued behind
+  it, the page's too (§4.4). Stop listening stops speech only in its own tab, as it takes the page out
+  (above).
 - **Mute** silences speech everywhere, and switching it on ends the clip playing. The device's volume
   slider sets the device only; the page uses the computer's volume.
 - **Device offline:** with Speak on set to the Listen page (or both), the page still plays while the
@@ -930,7 +941,8 @@ order with their times, checked against what the instructions ask (`docs/grok-bo
   bot, or the default bot);
 - calls the bridge refused or that failed, with the bridge's answer;
 - its speech: where it played, when it started (its first audio going out, so the speech service's
-  own delay counts), how long it played, and whether it played to the end or was stopped;
+  own delay counts), how long it played, and whether it played to the end, was stopped, or was
+  dropped by a hold to talk (§4.4);
 - attention starting or ending (§4.3.1).
 
 No text is kept, only lengths. The admin page shows a reply's text from the History entry it links
@@ -1055,7 +1067,7 @@ measurements (context, reliability, timing) are still to be taken.
 | M8 | xAI as a speech service (§5.6.1) | the device speaks with an xAI voice, a voice message is transcribed by xAI, and the tests pass against a fake xAI server | planned, not built |
 | M9 | Firmware releases and the web installer (§4.7) | "Release firmware" publishes `v<version>` with the four parts, the manifest and the notices; the installer page on GitHub Pages installs it from the browser and the device keeps its settings; **Erase device** gives a clean start | released: v0.6.0 on 13 Nov 2026 |
 | M10 | Boards and what they can do (§4.8): a board layer, and the AMOLED-1.8 as a second board | the AMOLED-1.8 shows the face, speaks and listens through a bridge, and is set up from a phone; the LCD-1.46 works as before; CI and a release build both boards; the installer page installs either from its own button | built (firmware 0.6.2): the AMOLED-1.8 (V2) works with real speech on the always-on bridge; the LCD-1.46's hardware check is still to come before the v0.6.2 release. Boards without a speaker or a microphone are described, not built |
-| M11 | Turn records and attention (§5.11, §4.3.1) | the test script in `docs/grok-bot-setup.md` runs on a second bot on the always-on bridge, its turns show the calls, checks and timings, and the results are written up; attention starts, outlasts the old 10-minute expiry and ends with the next message, on both boards, and the first bot's replies reach its desk throughout | built (firmware 0.6.3): the test script's messages 1 to 9 ran on a test bot on the always-on bridge on 20 Nov 2026 with every check passed, attention held 15 minutes and ended with the next message on the AMOLED-1.8, and the first bot's desk stayed its own (results in `docs/grok-bot-setup.md`). The LCD-1.46's hardware check is still to come before the v0.6.3 release |
+| M11 | Turn records and attention (§5.11, §4.3.1) | the test script in `docs/grok-bot-setup.md` runs on a second bot on the always-on bridge, its turns show the calls, checks and timings, and the results are written up; attention starts, outlasts the old 10-minute expiry and ends with the next message, on both boards, and the first bot's replies reach its desk throughout | built (firmware 0.6.3): the test script's messages 1 to 9 ran on a test bot on the always-on bridge on 20 Nov 2026 with every check passed, attention held 15 minutes and ended with the next message on the AMOLED-1.8, and the first bot's desk stayed its own (results in `docs/grok-bot-setup.md`). Released in v0.6.3 (22 Nov 2026); the LCD-1.46's hardware check is still to come, before the v0.6.4 release |
 
 M1 and M2 came first so that any surprise on the Grok Bot side showed up before the firmware was far
 along. M7, M8, M9 and M10 don't depend on each other, so any can come first.

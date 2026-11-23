@@ -23,7 +23,7 @@ let dataDir: string;
 let bridge: Bridge;
 let bot: FakeGrokBot;
 let botId: string;
-let desk: FakeDevice; // firmware 0.6.3: it lists "attention"
+let desk: FakeDevice; // firmware 0.6.3 and later: it lists "attention"
 let older: FakeDevice; // firmware 0.6.2, on the same bot
 let chirps = 0;
 

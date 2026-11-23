@@ -44,7 +44,7 @@ export interface WebhookEvent {
   answer?: string; // why it failed
 }
 
-export type SpeechResult = 'started' | 'played' | 'stopped' | 'kept' | 'muted' | 'failed' | 'offline';
+export type SpeechResult = 'started' | 'played' | 'stopped' | 'dropped' | 'kept' | 'muted' | 'failed' | 'offline';
 
 export interface SpeechEvent {
   ms: number;

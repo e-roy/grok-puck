@@ -26,6 +26,7 @@ const SPEECH: Record<string, string> = {
   started: 'speech started',
   played: 'speech played to the end',
   stopped: 'speech stopped',
+  dropped: 'not spoken: dropped by a hold to talk',
   kept: 'speech kept for later (offline)',
   muted: 'not spoken: muted',
   failed: 'speech failed',

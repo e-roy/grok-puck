@@ -81,8 +81,8 @@ static void send_hello(void) {
     // listed isn't there. A bridge that doesn't know a name ignores it.
     cJSON *features = cJSON_AddArrayToObject(m, "features");
     cJSON_AddItemToArray(features, cJSON_CreateString("speaking"));
-    // From 0.6.3: "waiting" shows as attention, with the "!" and the hop (spec §4.3.1), and the bot's
-    // name shows under the face when config gives one (spec §4.3.2).
+    // From 0.6.3: "waiting" shows as attention, with the "!" and the hop (spec §4.3.1). From 0.6.4:
+    // the bot's name shows under the face when config gives one (spec §4.3.2).
     cJSON_AddItemToArray(features, cJSON_CreateString("attention"));
     cJSON_AddItemToArray(features, cJSON_CreateString("bot-name"));
     if (BOARD_HAS_TOUCH) cJSON_AddItemToArray(features, cJSON_CreateString("touch"));

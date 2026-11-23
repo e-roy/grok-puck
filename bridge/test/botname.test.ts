@@ -58,7 +58,7 @@ function next<T>(emitter: EventEmitter, event: string, check: (value: T) => bool
   });
 }
 
-/** A fake device, approved for the bot. `attention` acts like firmware 0.6.3; `botName: false` like an earlier build of it. */
+/** A fake device, approved for the bot. `attention` acts like firmware 0.6.4; `botName: false` like 0.6.3, which lists attention only. */
 async function approved(id: string, options: { attention?: boolean; botName?: boolean; board?: string }): Promise<FakeDevice> {
   const device = new FakeDevice({ url: `ws://127.0.0.1:${bridge.publicPort}/device`, id, networks: ['Home Wi-Fi'], speaking: true, ...options });
   open.push(device);
@@ -123,7 +123,7 @@ test('the name in the characters a desk can show: accents off, a few letters spe
 
 test('a new device has the setting off, and its config carries no name', async () => {
   const desk = await approved('name-desk-01', { attention: true });
-  assert.ok(desk.botName, 'firmware 0.6.3 lists bot-name');
+  assert.ok(desk.botName, 'firmware 0.6.4 lists bot-name');
   const { devices, bots } = await admin<Overview>('GET', '/api/overview');
   const device = devices.find((d) => d.id === 'name-desk-01');
   assert.equal(device?.showBotName, false);
@@ -171,13 +171,13 @@ test("a name with characters the device can't show: sent as it can show it, or n
 test("firmware without bot-name isn't offered the option: turning it on is refused, and its config carries no name", async () => {
   for (const [id, options] of [
     ['name-older-062', { board: 'waveshare-amoled-1.8' }], // firmware 0.6.2
-    ['name-older-063', { attention: true, botName: false }], // an earlier build of 0.6.3
+    ['name-older-063', { attention: true, botName: false }], // firmware 0.6.3: attention, no bot-name
   ] as const) {
     const older = await approved(id, options);
     assert.ok(!older.botName);
     const refused = await call('PATCH', `/api/devices/${id}`, { showBotName: true });
     assert.equal(refused.status, 400);
-    assert.match(String(refused.json.error), /firmware can't show the bot's name: firmware 0\.6\.3 and later can/);
+    assert.match(String(refused.json.error), /firmware can't show the bot's name: firmware 0\.6\.4 and later can/);
     const { devices } = await admin<Overview>('GET', '/api/overview');
     assert.equal(devices.find((d) => d.id === id)?.showBotName, false);
     assert.equal((await setShown(older, false)).botName, undefined, 'turning it off always works');

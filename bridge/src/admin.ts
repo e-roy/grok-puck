@@ -228,7 +228,7 @@ export async function registerAdmin(app: FastifyInstance, ctx: AdminContext): Pr
     if (body.botId && !store.bot(body.botId)) return bad(reply, 'Unknown bot.');
     // Only firmware that lists "bot-name" can show it (spec §4.3.2); turning it off always works.
     if (body.showBotName === true && !device.features.includes(FEATURE_BOT_NAME)) {
-      return bad(reply, `${device.name}'s firmware can't show the bot's name: firmware 0.6.3 and later can.`);
+      return bad(reply, `${device.name}'s firmware can't show the bot's name: firmware 0.6.4 and later can.`);
     }
     const { timings, ...rest } = body;
     const muting = body.muted === true && !device.muted;

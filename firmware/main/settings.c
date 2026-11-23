@@ -169,7 +169,7 @@ void settings_load(settings_t *out) {
     uint8_t muted = 0;
     nvs_get_u8(h, "muted", &muted);
     out->muted = muted;
-    get_str(h, "bot_name", out->bot_name, sizeof(out->bot_name));  // none before firmware 0.6.3
+    get_str(h, "bot_name", out->bot_name, sizeof(out->bot_name));  // none before firmware 0.6.4
     nvs_close(h);
 }
 
